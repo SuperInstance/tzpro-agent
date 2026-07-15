@@ -1,0 +1,7 @@
+captures/
+memory/
+__pycache__/
+*.png
+*.jsonl
+.DS_Store
+node_modules/
