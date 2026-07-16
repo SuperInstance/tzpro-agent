@@ -33,6 +33,13 @@ try:
 except ImportError:
     _ANOMALY_ACTIVE = False
 
+# Optional forward-look engine (Phase 4)
+try:
+    from forward_look import predict_ahead, look_for_contour_crossings
+    _FORWARD_ACTIVE = True
+except ImportError:
+    _FORWARD_ACTIVE = False
+
 log = logging.getLogger("tzpro.capture")
 
 # Track last capture times
@@ -150,6 +157,24 @@ def _log_and_analyze(sounder_path: Path, nmea: dict):
             )
         except Exception as e:
             log.debug("Anomaly log: %s", e)
+
+    # Forward look prediction
+    if _FORWARD_ACTIVE and nmea.get("lat") and nmea.get("sog") is not None:
+        try:
+            cog = nmea.get("cog") or 0.0
+            sog = nmea.get("sog") or 0.0
+            fwd = predict_ahead(nmea["lat"], nmea["lon"], float(cog or 0), float(sog))
+            if "alerts" in fwd and fwd["alerts"]:
+                for alert in fwd["alerts"]:
+                    log.warning("FWD: %s", alert["message"])
+            if nearest := fwd.get("nearest_crossing"):
+                log.info(
+                    "FWD: 48fm crossing in %.2fnm (%s)",
+                    nearest.get("crossing_distance_nm", 0),
+                    nearest.get("direction", "?"),
+                )
+        except Exception as e:
+            log.debug("Forward look: %s", e)
 
     log.info(
         "Logged: depth=%.1ffm type=%s fish=%s",
