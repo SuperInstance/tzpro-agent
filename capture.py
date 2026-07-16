@@ -26,6 +26,13 @@ from screenshot import capture_full, crop_region, capture_sounder
 from sounder_analyzer import analyze_sounder
 from logger import log_observation
 
+# Optional anomaly logger (Phase 3)
+try:
+    from anomaly_logger import log_anomaly, get_db
+    _ANOMALY_ACTIVE = True
+except ImportError:
+    _ANOMALY_ACTIVE = False
+
 log = logging.getLogger("tzpro.capture")
 
 # Track last capture times
@@ -127,6 +134,23 @@ def _log_and_analyze(sounder_path: Path, nmea: dict):
     }
 
     log_observation(entry)
+
+    # Log anomaly if we have position and depth
+    if _ANOMALY_ACTIVE and nmea.get("lat") and analysis.get("bottom_depth_fm"):
+        try:
+            # contour_fm=None means we only log the sounder reading;
+            # the contour comparison will be added when Phase 2 grid is ready
+            log_anomaly(
+                lat=nmea["lat"],
+                lon=nmea["lon"],
+                sounder_fm=analysis["bottom_depth_fm"],
+                contour_fm=None,
+                sog=nmea.get("sog"),
+                source="capture",
+            )
+        except Exception as e:
+            log.debug("Anomaly log: %s", e)
+
     log.info(
         "Logged: depth=%.1ffm type=%s fish=%s",
         entry["sounder_analysis"].get("depth_fm") or 0,

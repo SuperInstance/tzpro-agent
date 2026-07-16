@@ -1,7 +1,13 @@
 captures/
 memory/
+bathymetry/
 __pycache__/
 *.png
 *.jsonl
 .DS_Store
 node_modules/
+_probe_*.py
+_doc_summary.md
+tmp_*
+*.db
+*.npy
