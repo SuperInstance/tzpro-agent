@@ -135,16 +135,16 @@ def _log_and_analyze(sounder_path: Path, nmea: dict):
 
     log_observation(entry)
 
-    # Log anomaly if we have position and depth
+    # Log anomaly with contour comparison
     if _ANOMALY_ACTIVE and nmea.get("lat") and analysis.get("bottom_depth_fm"):
         try:
-            # contour_fm=None means we only log the sounder reading;
-            # the contour comparison will be added when Phase 2 grid is ready
+            from contour_query import get_depth_fm
+            cfm = get_depth_fm(nmea["lat"], nmea["lon"])
             log_anomaly(
                 lat=nmea["lat"],
                 lon=nmea["lon"],
                 sounder_fm=analysis["bottom_depth_fm"],
-                contour_fm=None,
+                contour_fm=cfm,
                 sog=nmea.get("sog"),
                 source="capture",
             )
