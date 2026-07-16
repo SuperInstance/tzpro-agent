@@ -91,6 +91,22 @@ Follows the Captain's own philosophy — "Ebb and Flow":
 | **Fishing** | Working grounds | qwen3:8b + Florence-2 (alternating) | ~45W (GPU active) |
 | **Processing** | Post-trip analysis | qwen3:8b + Florence-2 (parallel) | ~55W (full GPU) |
 
+## GPU Setup Note
+
+Florence-2 requires CUDA PyTorch for fast GPU inference. Current status:
+- System Python: 3.13.14 — no CUDA PyTorch wheels available yet
+- CPU PyTorch installed — Florence-2 works at ~10-30s per inference
+- RTX 4050 ready when CUDA wheels ship for Python 3.13
+
+Workaround: Install Python 3.12 venv and CUDA PyTorch there:
+```
+pip install virtualenv
+python3.12 -m venv venv_cuda
+.\venv_cuda\Scripts\activate
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+# Florence-2 runs at ~2-3s in FP16 on RTX 4050
+```
+
 ## Recommendation
 
 For the always-on internal monologue:
