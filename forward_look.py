@@ -284,6 +284,126 @@ def prediction_stats() -> dict:
     }
 
 
+def find_safe_heading(
+    lat: float,
+    lon: float,
+    sog: float,
+    step_m: float = 50.0,
+    max_look_m: float = 5000.0,
+    gear_fm: float = 48.0,
+) -> dict:
+    """Find safest heading from 8 cardinal directions.
+
+    For each cardinal heading (N, NE, E, SE, S, SW, W, NW), projects
+    forward in steps and finds the distance to the gear contour crossing.
+    Returns the heading with the MOST clearance — i.e., the furthest
+    distance before the gear contour is crossed (or the quickest exit
+    if currently inside the contour).
+
+    Args:
+        lat: Current latitude
+        lon: Current longitude
+        sog: Speed over ground in knots
+        step_m: Step size in meters between depth checks (default 50)
+        max_look_m: Maximum look-ahead distance in meters (default 5000)
+        gear_fm: Gear depth contour (default 48 fm)
+
+    Returns:
+        Dict with:
+          - vessel: Current position and SOG
+          - current_depth_fm: Depth at current position
+          - inside_contour: Whether vessel is inside gear contour
+          - best_heading: Heading (deg) with most clearance
+          - best_label: Cardinal label for best heading
+          - best_distance_m: Distance to contour on best heading
+          - best_distance_nm: Distance in nautical miles
+          - headings: List of per-heading results
+          - timestamp: Unix time
+    """
+    HEADING_LABELS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+    HEADING_DEGREES = [0, 45, 90, 135, 180, 225, 270, 315]
+
+    current_depth = get_depth_fm(lat, lon)
+    if current_depth is None:
+        return {
+            "error": "Position outside charted region",
+            "lat": lat,
+            "lon": lon,
+        }
+
+    inside_contour = current_depth < gear_fm
+
+    results = []
+    for hdg, label in zip(HEADING_DEGREES, HEADING_LABELS):
+        dist_m = step_m
+        crossing_found = False
+        prev_depth = current_depth
+
+        while dist_m <= max_look_m + 0.001:
+            proj_lat, proj_lon = _project_position(lat, lon, hdg, dist_m)
+            depth = get_depth_fm(proj_lat, proj_lon)
+
+            if depth is None:
+                # Left charted area — treat as no crossing found
+                break
+
+            if inside_contour:
+                # Looking for exit to deep water (depth >= gear_fm)
+                if prev_depth < gear_fm <= depth:
+                    crossing_found = True
+                    break
+            else:
+                # Looking for entry to shallow water (depth <= gear_fm)
+                if prev_depth >= gear_fm and depth < gear_fm:
+                    crossing_found = True
+                    break
+
+            prev_depth = depth
+            dist_m += step_m
+
+        results.append({
+            "heading": hdg,
+            "label": label,
+            "distance_m": round(dist_m, 1) if crossing_found else None,
+            "distance_nm": round(dist_m / 1852.0, 3) if crossing_found else None,
+            "crossing_found": crossing_found,
+            "beyond_max": not crossing_found and dist_m > max_look_m,
+        })
+
+    # Sort by clearance: if outside contour, most clearance = furthest to contour;
+    # if inside contour, most clearance = shortest path back to contour (exit)
+    if inside_contour:
+        # Shorter distance to exit is better
+        sorted_results = sorted(
+            results,
+            key=lambda r: r["distance_m"] if r.get("crossing_found") else float("inf"),
+        )
+        best = sorted_results[0] if sorted_results else None
+    else:
+        # Longer distance to contour is better
+        sorted_results = sorted(
+            results,
+            key=lambda r: r["distance_m"] if r.get("crossing_found") else -1.0,
+        )
+        best = sorted_results[-1] if sorted_results else None
+
+    return {
+        "vessel": {
+            "lat": round(lat, 6),
+            "lon": round(lon, 6),
+            "sog_knots": sog,
+        },
+        "current_depth_fm": round(current_depth, 1),
+        "inside_contour": inside_contour,
+        "best_heading": best["heading"],
+        "best_label": best["label"],
+        "best_distance_m": best.get("distance_m"),
+        "best_distance_nm": best.get("distance_nm"),
+        "headings": results,
+        "timestamp": time.time(),
+    }
+
+
 if __name__ == "__main__":
     import sys
     

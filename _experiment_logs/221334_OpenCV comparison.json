@@ -1,0 +1,24 @@
+{
+  "source": "tzpro_20260715_190041_sounder.png",
+  "bottom_depth_fm": 53.2,
+  "bottom_pixel_y": 599,
+  "bottom_type": "soft_mud",
+  "bottom_confidence": "low",
+  "fish_returns": {
+    "count": 3664,
+    "density_per_100kpx": 1100.3,
+    "avg_intensity": 134.7,
+    "depth_range": [
+      0.0,
+      0.63
+    ],
+    "distribution": "very_dense"
+  },
+  "thermoclines": [],
+  "depth_scale": [],
+  "signal_profile": {
+    "avg_color": "rgb(14,34,53)",
+    "signal_strength": 0.134,
+    "palette_dominance": "blue"
+  }
+}

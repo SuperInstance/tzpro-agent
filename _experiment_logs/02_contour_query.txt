@@ -1,0 +1,2 @@
+Test: 67.31189767832518 fm
+Gear: {'charted_fm': 67.3, 'gear_fm': 48, 'clearance_fm': 19.3, 'status': 'clear', 'contours_nearby': [10, 20, 30, 48, 60]}

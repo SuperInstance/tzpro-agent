@@ -12,13 +12,14 @@ are the moments worth surfacing to the Captain.
 
 Design:
     Runs as a background loop alongside agent_loop.py.
-    Uses Ollama's API to process observations through qwen3:4b.
+    Uses Ollama's chat API to process observations through qwen3:4b.
     Maintains a rolling context window of recent observations for pattern detection.
     Archives monologue entries to JSONL for later review.
 
 Usage:
     python monologue.py                    # Background loop
     python monologue.py --oneshot          # Single observation, print monologue
+    python monologue.py --loop N           # Run N monologue cycles, print summary
     python monologue.py --review           # Review last 24h of monologue
 """
 
@@ -32,6 +33,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+import urllib.error
 import urllib.request
 
 # Local
@@ -48,13 +50,14 @@ MONOLOGUE_DIR.mkdir(parents=True, exist_ok=True)
 CONTEXT_FILE = MONOLOGUE_DIR / "context.json"
 
 # ── Ollama Config ──────────────────────────────────────────────────
-OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
+OLLAMA_CHAT_URL = "http://127.0.0.1:11434/api/chat"
 MONOLOGUE_MODEL = "qwen3:4b"  # always-on, CPU-friendly
 DEEP_MODEL = "qwen3:8b"       # swapped in when GPU is available
 
 # ── Monologue Config ───────────────────────────────────────────────
 POLL_INTERVAL = 60  # seconds between monologue cycles
 CONTEXT_WINDOW = 20  # number of recent observations to keep in context
+OLLAMA_TIMEOUT = 120  # seconds to wait for Ollama response
 
 
 class MonologueEntry:
@@ -100,30 +103,89 @@ class MonologueEntry:
 
 
 def _ollama_generate(prompt: str, model: str = MONOLOGUE_MODEL) -> str:
-    """Send a prompt to Ollama and return the response text."""
+    """Send a prompt to Ollama via the chat API and return the response text.
+
+    Uses the chat API with a system message that instructs the model to
+    respond concisely without thinking/reasoning. Retries once on transient
+    errors (timeouts, connection resets, empty responses).
+
+    If the model produces a thinking block but no response text, falls back
+    to the last substantive line from the thinking content.
+    """
     payload = json.dumps({
         "model": model,
-        "prompt": prompt,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are a concise nautical observer aboard F/V EILEEN. "
+                    "Respond immediately with ONE short sentence. "
+                    "No reasoning or thinking aloud."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
         "stream": False,
         "options": {
-            "temperature": 0.7,
+            "temperature": 0.5,
             "max_tokens": 200,
+            "num_predict": 200,
         },
     }).encode()
-    
-    req = urllib.request.Request(
-        OLLAMA_URL,
-        data=payload,
-        headers={"Content-Type": "application/json"},
-    )
-    
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            result = json.loads(resp.read().decode())
-            return result.get("response", "").strip()
-    except Exception as e:
-        log.debug("Ollama: %s", e)
-        return ""
+
+    for attempt in (1, 2):
+        try:
+            req = urllib.request.Request(
+                OLLAMA_CHAT_URL,
+                data=payload,
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT) as resp:
+                result = json.loads(resp.read().decode())
+                msg = result.get("message", {})
+                response = msg.get("content", "").strip()
+
+                if response:
+                    return response
+
+                # Fallback: extract last substantive line from thinking block
+                thinking = msg.get("thinking", "").strip()
+                if thinking:
+                    lines = [l.strip() for l in thinking.split("\n") if l.strip()]
+                    if lines:
+                        last = lines[-1]
+                        if len(last) > 15:
+                            log.debug("Fallback from thinking: %s", last[:60])
+                            return last[:100]
+
+                if attempt == 1:
+                    log.debug("Ollama returned empty response, retrying...")
+                    continue
+                log.warning("Ollama returned empty after retry")
+                return ""
+
+        except urllib.error.URLError as e:
+            if attempt == 1:
+                log.debug("Ollama transient error (attempt 1/2): %s", e)
+                time.sleep(5)
+                continue
+            log.warning("Ollama unreachable after 2 attempts: %s", e)
+            return ""
+        except json.JSONDecodeError as e:
+            if attempt == 1:
+                log.debug("Ollama bad response (attempt 1/2): %s", e)
+                continue
+            log.warning("Ollama bad JSON after retry: %s", e)
+            return ""
+        except Exception as e:
+            if attempt == 1:
+                log.debug("Ollama error (attempt 1/2): %s", e)
+                time.sleep(5)
+                continue
+            log.warning("Ollama failed after 2 attempts: %s", e)
+            return ""
+
+    return ""
 
 
 def _build_monologue_prompt(current: dict) -> str:
@@ -146,19 +208,17 @@ def _build_monologue_prompt(current: dict) -> str:
     else:
         profile_summary = "no forward data"
     
-    prompt = f"""You are the internal monologue of F/V EILEEN. You observe sensor data and generate a brief, natural-language note about what you notice.
+    prompt = (
+        f"F/V EILEEN at {position.get('lat', '?')}N {position.get('lon', '?')}W, "
+        f"depth {current.get('depth_fm', '?'):.0f}fm, "
+        f"gear clearance {current.get('clearance', '?'):.0f}fm, "
+        f"forward {profile_summary}, "
+        f"{current.get('anomaly_count', 0)} anomalies logged."
+    )
+    if alerts:
+        prompt += f" Alert: {alerts[0].get('message', '')}"
 
-Current observation:
-- Position: {position.get('lat', '?')}, {position.get('lon', '?')}
-- Depth: {current.get('depth_fm', '?')} fm
-- Gear clearance: {current.get('clearance', '?')} fm
-- Forward profile: {profile_summary}
-- Anomalies: {current.get('anomaly_count', 0)} total logged
-
-Alerts ({len(alerts)}):
-{chr(10).join(a.get('message', '') for a in alerts[:3])}
-
-Generate ONE short sentence in the voice of a ship's officer noting something useful. Be concise. If nothing notable, say "Nothing needs attention." If something is changing, say what."""
+    prompt += "\nOne-sentence ship's officer monologue note:"
     
     return prompt
 
@@ -307,6 +367,73 @@ def oneshot():
     print(json.dumps(result, indent=2, default=str))
 
 
+def loop_mode(count: int):
+    """Run N monologue cycles back-to-back, logging each and printing a summary."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    
+    results = []
+    for i in range(1, count + 1):
+        log.info("Cycle %d/%d — reading sensors...", i, count)
+        sensors = read_sensors()
+        
+        if "error" in sensors:
+            log.warning("Cycle %d: sensor error: %s", i, sensors["error"])
+            results.append({"cycle": i, "success": False, "error": sensors["error"]})
+            continue
+        
+        entry = think(sensors)
+        if entry:
+            archive(entry)
+            results.append({
+                "cycle": i,
+                "success": True,
+                "category": entry.category,
+                "text": entry.text,
+                "ts": entry.ts,
+            })
+            icon = {"alert": "🚨", "change": "🔄", "steady_state": "✅", "curiosity": "🤔"}.get(entry.category, "🧠")
+            log.info("%s [%s] %s", icon, entry.category, entry.text)
+        else:
+            log.warning("Cycle %d: no monologue generated (model silent)", i)
+            results.append({"cycle": i, "success": False, "error": "no monologue generated"})
+        
+        if i < count:
+            time.sleep(POLL_INTERVAL)
+    
+    # ── Summary ────────────────────────────────────────
+    successes = [r for r in results if r.get("success")]
+    failures = [r for r in results if not r.get("success")]
+    
+    print()
+    print("=" * 56)
+    print("  MONOLOGUE LOOP SUMMARY")
+    print("=" * 56)
+    print(f"  Cycles run:    {count}")
+    print(f"  Successful:    {len(successes)}")
+    print(f"  Failures:      {len(failures)}")
+    print()
+    if successes:
+        categories = {}
+        for r in successes:
+            cat = r.get("category", "unknown")
+            categories[cat] = categories.get(cat, 0) + 1
+        print(f"  Categories:    {categories}")
+        print()
+        print("  Entries:")
+        for r in successes:
+            print(f"    [{r['ts'][:19]}] [{r['category']}] {r['text']}")
+    if failures:
+        print()
+        print("  Failures:")
+        for r in failures:
+            print(f"    Cycle {r['cycle']}: {r.get('error', 'unknown')}")
+    print()
+
+
 def review(hours: int = 24):
     """Print a summary of recent monologue activity."""
     entries = load_recent_context(hours)
@@ -339,6 +466,15 @@ if __name__ == "__main__":
     
     if "--oneshot" in sys.argv:
         oneshot()
+    elif "--loop" in sys.argv:
+        count = 3  # default
+        for i, a in enumerate(sys.argv):
+            if a == "--loop" and i + 1 < len(sys.argv):
+                try:
+                    count = int(sys.argv[i + 1])
+                except ValueError:
+                    pass
+        loop_mode(count)
     elif "--review" in sys.argv:
         hours = 24
         for i, a in enumerate(sys.argv):

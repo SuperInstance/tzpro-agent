@@ -1,0 +1,6 @@
+{
+  "torch": "2.6.0+cu124",
+  "cuda": true,
+  "device": "NVIDIA GeForce RTX 4050 Laptop GPU",
+  "vram_free_gb": 4.96
+}

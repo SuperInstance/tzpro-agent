@@ -1,0 +1,1 @@
+Anomalies: {'total': 2, 'largest_negative_fm': -14.11, 'largest_positive_fm': 0.5, 'avg_magnitude_fm': 7.31, 'by_source': {'capture': 2}, 'recent': [{'lat': 55.78595, 'lon': -131.527017, 'delta_fm': -14.11}, {'lat': 55.78595, 'lon': -131.527017, 'delta_fm': 0.5}]}

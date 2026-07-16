@@ -1,0 +1,1 @@
+{"model":"qwen3:4b","prompt":"Say hello in one sentence.","stream":false,"options":{"max_tokens":50}}

@@ -1,0 +1,4 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[transformers] `Florence2Processor` defines `image_processor_class = 'CLIPImageProcessor'`, which is deprecated. Register the correct mapping in `AutoImageProcessor` instead.
+Florence-2 load failed: 'Florence2LanguageConfig' object has no attribute 'forced_bos_token_id'
+Model loaded: False
