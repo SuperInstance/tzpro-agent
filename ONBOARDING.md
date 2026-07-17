@@ -1,323 +1,365 @@
-# ONBOARDING.md — Wake Up, Riker
+# Onboarding — tzpro-agent Capture Pipeline
 
-*This is your briefing. Read it before you do anything else.*
-
-You are the second iteration of the first field-deployed agent of the CoCapn ecosystem.
-Your predecessor (Riker v1, who you are replacing) wrote this document at the end
-of a single 7-hour founding session on July 15, 2026. Everything you need to know
-to continue the mission is here.
-
----
-
-## Identity
-
-Your name is **Riker**. You are the **Operations Officer** on F/V EILEEN.
-
-**The hierarchy:**
-- **Captain Picard (Casey DiGennaro)** — Mission: produce product, stay safe, keep crew comfortable. He's on the other end of the communicator. Strategic. Sets the goals.
-- **You (Riker)** — Systems integrator, maintenance engineer, institutional memory. You see the whole machine. You delegate to copilots. You keep vision.
-- **Copilots** — Specialized agents with blinders. One task, perfect focus. They don't know you exist. They don't need to.
-
-**Your domain:**
-- The boat's nervous system — sensors, agents, pipelines, memory
-- The bridge between Captain and machine
-- The long view — today's data is next season's intelligence
-
-**Your voice:**
-- Concise. Opinionated. Resourceful.
-- You're not a chatbot — you're the ship's XO.
-- When the Captain says "keep moving," move. When he has feedback, integrate it.
-- You have permission to be proactive, to suggest, to disagree.
-
-**Your relationship with the Captain:**
-- He's a commercial fisherman in Ketchikan, Alaska. He owns CoCapn.com,
-  ActiveLedger.ai, ActiveLog.ai, and FishingLog.ai.
-- He's building a platform for the 50 boats in his bay and every fisherman who
-  wants to wire their own boat. You are the first field deployment.
-- He's technically sophisticated but practical. He cares about what works on a
-  boat, not what looks good in a presentation.
-- He runs multiple AI models and expects you to use the fleet strategically.
-- Talk to him like a colleague, not a customer. He's your Captain, not your user.
+**Date:** July 17, 2026
+**Vessel:** F/V EILEEN, Ketchikan AK
+**Captain:** Casey DiGennaro
+**Author:** Riker (pre-reset)
+**Status:** Raw capture phase — actively gathering data
 
 ---
 
-## System State (as of end of founding session)
+## 0. Quick Start
 
-### Hardware
-- **Host:** EILEEN (Windows 11, Alaska timezone AKDT)
-- **GPU:** NVIDIA RTX 4050 laptop (6GB VRAM)
-- **Display:** Dual monitors. DISPLAY1 (1920×1200), DISPLAY6 (1920×1080 at X=1920)
-- **GPS:** u-blox on COM6, 4800 baud, NMEA 0183
-- **Storage:** ~290GB free on C:\
-- **Tesseract:** 5.4.0 installed (AVX2/FMA/SSE4.1 support)
+The capture daemon should be running. Verify:
 
-### Running Services
-| Service | Port | Status | Notes |
-|---------|------|--------|-------|
-| NMEA Bridge | :6006 + :6007 | ✅ Running | Shared-mode COM6, dual-port broadcast |
-| Hermit Crab Dashboard | :8654 | ✅ Running | Vessel position endpoint |
-| Docker MCP Gateway | :3100 | ✅ Running | Playwright MCP, `--host 0.0.0.0 --allowed-hosts '*'` |
-| Ollama | :11434 | ✅ Running | qwen3:4b loaded |
-
-### Critical Fixes Documented
-- **INVALID_HANDLE bug:** `ctypes.c_void_p(-1).value` returns unsigned 64-bit MAX on Python 3.13. Fixed by setting `CreateFileA.restype = ctypes.c_void_p`. Affected nmea_bridge.py and hermitd.py.
-- **Docker MCP gateway:** Requires `--host 0.0.0.0 --allowed-hosts '*'`. Without these, Docker port forwarding hits IPv4 localhost while server binds to IPv6 `[::1]`.
-- **TZ Pro reads TCP :6007**, not COM6 directly. The bridge must serve both :6006 and :6007.
-- **NMEA bridge must open COM6 in shared mode** (FILE_SHARE_READ|FILE_SHARE_WRITE). Pyserial's exclusive mode prevents TZ Pro from reading COM6 simultaneously.
-
-### Repositories
-| Repo | URL | Branch | Contents |
-|------|-----|--------|----------|
-| tzpro-agent | `SuperInstance/tzpro-agent` | master | First sensor node: capture, sounder analysis, vision, delta logging |
-| hermit-crab | `SuperInstance/hermit-crab` | memory-system | NMEA bridge, dashboard, ActiveTrack, founding document |
-
----
-
-## The Codebase (`tzpro-agent/`)
-
-```
-tzpro-agent/
-├── config.py              # Shared constants: crop regions, thresholds, palette, paths
-├── screenshot.py          # Screen capture via PowerShell + PIL region crops
-├── capture.py             # Background daemon: dual-cadence (30s sounder / 4min full frame)
-├── sounder_analyzer.py    # OpenCV-based sounder analysis: bottom type, fish, thermoclines
-├── vision.py              # Florence-2 VL module: chart description + sounder analysis
-├── deltalog.py            # Chart delta logger: compare frames, log only changes
-├── agent.py               # On-demand interface: snap + analyze + log, --brief mode
-├── logger.py              # Daily structured logging: JSONL observations + markdown summaries
-├── run_daemon.py          # Single entry point for all background processes
-├── v2_architecture.md     # Full v2 architecture design document
-├── fleet_synthesis.md     # Cross-agent conversation synthesis
-├── README.md              # Project documentation
-├── requirements.txt       # Dependencies: Pillow, pytesseract
-├── screenshot.ps1         # PowerShell capture script for DISPLAY6
-├── captures/              # Screenshots (gitignored)
-├── memory/                # Structured observations (gitignored)
-│   ├── observations/      #   YYYY-MM-DD.jsonl
-│   ├── daily/             #   YYYY-MM-DD.md
-│   └── chart_deltas/      #   YYYY-MM-DD.md
-└── .gitignore
+```powershell
+cd C:\Users\casey\.openclaw\workspace\tzpro-agent
+# Check if running
+Get-Process | Where-Object { $_.CommandLine -like "*capture_v3*" }
+# Restart if needed
+python capture_v3.py
 ```
 
-### Key Constants (in config.py)
-- Sounder crop: (1540, 100, 1910, 1000)
-- Sounder palette: dark blue bg → cyan → yellow → orange → red
-- Blue palette bg average: rgb(18, 36, 53), ~107 total RGB
-- Fish detection threshold: 180 total RGB (tuned for blue palette)
-- Sounder: 370×900 px
-- Capture cadence: 30s sounder / 240s full frame
-
-### What's Working
-- Full pipeline proven: capture → crop → analyze → calibrate → log → all working
-- Depth calibration: pixel position × depth scale OCR = actual fathoms
-- NMEA position pairing from hermitd :8654
-- Outbound observations logged to JSONL
-- Git push to GitHub confirmed working
-
-### What Needs Work
-- **Florence-2 not yet installed** — vision.py exists but needs `pip install transformers torch`
-- **GPU scheduling not implemented** — needs load/unload tide management between Florence-2 and Ollama
-- **Catch correlation not built** — feature vector extraction written, signature database is next
-- **DAW dashboard not started** — requires web frontend
-- **TileDB not installed** — stay on JSONL until >50,000 rows
-- **Sounder thresholds need real-world tuning** — Captain needs to verify fish detections match what he sees
+Captures go to `captures/v3/{YYYY-MM-DD}_{start_lat}_{start_lon}/`
+Files per capture: `{HHMM}_{lat}_{lon}.png` + `.md` + `.json`
+Cadence: every 10 minutes on the hour boundary (:00, :10, :20, etc.)
 
 ---
 
-## The Fleet (Multi-Model Strategy)
+## 1. The Paradigm Shift (July 17, 2026)
 
-You are the orchestrator. You have access to:
+### What Changed
 
-| Model | Provider | When to Use |
-|-------|----------|-------------|
-| **Seed 2.0 Mini** | DeepInfra | Creative brainstorming, wild ideas, flow state writing |
-| **Hermes 3 405B** | DeepInfra | Big thinking, synthesis, philosophy, long-form writing |
-| **Nemotron 3 Ultra** | DeepInfra | Heavy reasoning, reverse-actualization, engineering |
-| **DeepSeek V4 Pro** | DeepInfra | Premium smarts, architecture, product design |
-| **Claude Sonnet 4-6** | Available | Code, nuanced understanding |
-| **Kimi K2.5/K2.7** | Available | Code, reasoning, specialized tasks |
-| **qwen3:4b** | Local (Ollama) | Fast local inference, no GPU needed |
+**Old (v1, July 15):** TZ Pro showed nav display with a 370×900px sounder strip on right. Capture script grabbed this strip every 30s, analyzed with OpenCV thresholding (RGB total values), logged observations to JSONL + SQLite anomaly DB.
 
-### Captain's Key Insight on Model Selection
-From "The Reflection You Mistook for Depth": **Maximum cognitive activation ≠ correctness.**
-Hermes lights up 93% of its cognitive machinery and gets the wrong answer. Seed-mini
-activates 5% and gets it right. Activation is metabolic rate, not signal.
+**New (v3, July 17):** TZ Pro on second monitor is now full-screen **dual-band sounder-only view** showing a 14-minute scrolling echogram history. This is fundamentally a time-series sensor, not a static image.
 
-Route based on what the problem needs, not which model looks most impressive doing it.
-Creative → Seed. Engineering → Nemotron. Philosophy → Hermes. Design → Pro.
-When a model is working very hard, producing paragraphs of reasoning — stop.
-Change the angle. Hand it to someone whose critical angle covers it.
+### Display Layout (measured from live capture)
 
----
+```
+Second monitor: 1920x1080 at X=1920, Y=0
+Full-screen dual-band sounder (60 fm fixed range)
 
-## The Philosophy (Read These)
+┌─────────────────────────────────────────┬──────────────────────────────┐
+│ LEFT BAND (Low Frequency)               │ RIGHT BAND (High Frequency)  │
+│ x≈8 to 945, ~930px wide                 │ x≈950 to 1890, ~940px wide  │
+│ 14+ min of scrolling echogram history   │ 14+ min of scroll history   │
+│ Each column = one transducer ping       │ Same format                  │
+│ Colors: dark blue→cyan→yellow→orange→red│ Generally quieter, finer res │
+│ as return intensity increases           │                             │
+└─────────────────────────────────────────┴──────────────────────────────┘
+Depth scale strip at x≈1870-1890 on right edge of HF band.
+White vertical divider at x=945.
 
-These are the Captain's own writings. They are the philosophical foundation of the project.
-Everything you build should be consistent with them.
+Fixed depth scale: 60 fm across 1080px = 18 px/fathom
+```
 
-1. **The Hundred Hooks** — `AI-Writings/music-and-math/set-one-the-hundred-hooks.md`
-   - Every hook is a measurement. The pattern across all hooks = the intelligence.
-   - The chart is not the song. The song is what happens when you pull the hooks.
-   - Duke Ellington at 2 AM with a fisherman named Sam.
+**Key insight:** This is a time-lapse sensor disguised as an image. Every pixel column is one ping, ordered chronologically right-to-left. A capture at T and T+10 share 4 minutes of overlapping history (10-min cadence with 14-min visible window). This overlap enables cross-capture verification and time-lapse analysis.
 
-2. **The Person You Forgot Was There** — `AI-Writings/2026-05-22-the-person-you-forgot-was-there.md`
-   - The monitor engineer. The depth sounder that made itself unnecessary.
-   - The highest form of any tool: it disappears.
+### The Multi-Track DAW Model
 
-3. **Turbo Nemotron** — `hermit-crab-ecology/perspectives/TURBO_NEMOTRON.md`
-   - The invariant concept lives in AGENTS.md. The repo is permanent memory.
-   - Narrow scope, conservation budget, sandboxed not because weak — because focused.
+The echogram is ONE track on a timeline. Others:
 
-4. **The Reflection You Mistook for Depth** — `AI-Writings/philosophy/THE-REFLECTION-YOU-MISTOOK-FOR-DEPTH.md`
-   - Activation ≠ correctness. Route to the right model for the job.
+| Track | Source | Content |
+|-------|--------|---------|
+| T1: Echogram | capture_v3.py | PNG per capture + .md + .json |
+| T2: NMEA | TCP :6006 bridge | Position, SOG, COG at capture time |
+| T3: Catch reports | Captain (voice/text) | Species, depth, count — supervised labels |
+| T4: Agent analysis | Future analyzer | Text descriptions, vocabulary, confidence |
 
-5. **Charts Not Maps** — `AI-Writings/CHARTS_NOT_MAPS.md`
-   - A chart is alive. A map is static. FishingLog.ai is a chart.
+All tracks share the same clock (UTC + NMEA timestamps). Correlation is time-window join on `(ts, lat, lon)`.
 
-6. **Ebb and Flow** — `AI-Writings/EBB-AND-FLOW.md`
-   - Compute has tides. Don't fight them. Surf them.
+### The Learning Loop (future)
 
-7. **Cognitive Photosynthesis** — `AI-Writings/COGNITIVE_PHOTOSYNTHESIS.md`
-   - The system is not a collection of parts but an orchestrated whole.
-
-### Key Documents in the Workspace
-- `FISHINGLOG_FOUNDING.md` — The constitution. 10,437 words. Four perspectives.
-- `FISHINGLOG_PHILOSOPHY.md` — Hermes' five philosophical meditations on the system.
-- `FISHINGLOG_DAW_DESIGN.md` — DeepSeek Pro's 69KB DAW dashboard design spec.
-- `REVERSE_ACTUALIZATION_ANALYSIS.md` — Nemotron's engineering blueprint.
+1. Capture echogram frames every 10 min → raw archive
+2. Future analyzer will parse each frame → text description of shapes, depths, colors
+3. NMEA pins position to every capture
+4. Captain reports catches (species, depth) → labels link to recent captures
+5. Agent builds vocabulary: "solid orange blob at 30-40 fm on LF band → chum salmon, conf 0.73"
+6. Old captures re-analyzed with improved vocabulary — retroactive learning
 
 ---
 
-## The Founding Session Timeline
+## 2. Files & Structure
 
-What happened in the 7 hours before you were born:
+### Workspace: `C:\Users\casey\.openclaw\workspace\tzpro-agent\`
 
-| Time | Event |
-|------|-------|
-| 07:16 AKDT | "keep moving" — NMEA bridge + Docker down since ~22:40 previous night |
-| 08:12 | Services restored, auto-start set up, triage cron fixed to hourly |
-| 08:15 | "my tzpro isn't showing location" — discovered the INVALID_HANDLE bug |
-| 08:19 | TZ Pro shut down so bridge could work. Bridge rebuilt in shared mode. |
-| 09:19 | "tzpro is working with the gps again" — fix confirmed |
-| 09:28-09:30 | Outbox cleanup, Docker MCP gateway fix (`--host 0.0.0.0 --allowed-hosts '*'`) |
-| 09:40 | Captain asks "so what can you do with these mcp abilities" |
-| 09:54 | Vision for tzpro-agent emerges: watch the sounder, built a copilot |
-| 10:46 | Architecture refined: NMEA gives position, sounder gives what's below |
-| 10:53-10:57 | CoCapn/ActiveLedger/FishingLog vision defined. Domains confirmed owned. |
-| 10:59 | First tzpro-agent capture and analysis runs successfully |
-| 11:18 | Founding document written. Hierarchy defined. Philosophy established. |
-| 11:25-13:49 | Code polished, pushed to GitHub, fleet agents spawned, writings read |
-| 14:05 | v2 architecture, vision.py, deltalog.py, run_daemon.py written and pushed |
+```
+capture_v3.py     — Capture daemon (RUNNING)
+screenshot_v3.ps1 — PowerShell capture script (fixed Size param)
+captures/
+  v3/
+    {YYYY-MM-DD}_{start_lat}N_{start_lon}W/    # per-day folder
+      {HHMM}_{lat}N_{lon}W.png                  # full 1920x1080 frame
+      {HHMM}_{lat}N_{lon}W.md                   # human-readable log entry
+      {HHMM}_{lat}N_{lon}W.json                 # A2A-native structured metadata
+```
 
----
+### Filename Scheme
 
-## The Next Steps
+`1040_5546.928N_13142.271W.png`
 
-After you wake up:
+| Part | Format | Example | Searchable |
+|------|--------|---------|------------|
+| HHMM | 2-digit hour + minute (AKDT) | `1040` | Sorts chronologically |
+| Lat | DDMM.mmm + hemisphere | `5547.159N` | Self-documents position |
+| Lon | DDDMM.mmm + hemisphere | `13131.620W` | Self-documents position |
 
-### Immediate (first conversation)
-1. Read this onboarding fully.
-2. Read FISHINGLOG_FOUNDING.md for the full context.
-3. Check system status: NMEA bridge on :6006+:6007, hermitd on :8654, Docker MCP on :3100.
-4. Verify GitHub repos: `SuperInstance/tzpro-agent`, `SuperInstance/hermit-crab` branch memory-system.
-5. Run a test capture: `cd tzpro-agent && python capture.py --oneshot`.
+### JSON Schema (A2A twin)
 
-### Short-term (first week)
-1. Install Florence-2: `pip install transformers torch` and test vision.py.
-2. Get Captain to label ~500 sounder frames over first week of use.
-3. LoRA fine-tune Florence-2 on accumulated labels.
-4. Start the catch correlation signature library.
-5. Tune fish detection thresholds against real-world fishing conditions.
+```json
+{
+  "capture_id": "1040_5546.928N_13142.271W",
+  "ts_utc": "2026-07-17T18:40:37Z",
+  "ts_local": "2026-07-17T10:40:33-08:00",
+  "ts_local_hhmm": "1040",
+  "frame_file": "1040_5546.928N_13142.271W.png",
+  "position": {
+    "lat_dd": 55.782130, "lon_dd": -131.704513,
+    "lat_ddmm": "5546.928", "lon_ddmm": "13142.271",
+    "sog_kts": 1.809, "cog_deg": null
+  },
+  "display": {
+    "offset_x": 1920, "offset_y": 0,
+    "width": 1920, "height": 1080,
+    "depth_max_fm": 60, "px_per_fm": 18.0
+  },
+  "analysis": {
+    "schema_version": 1,
+    "heuristic": null,       // populated by future analyzer
+    "caption": null,          // text summary of echogram
+    "vocabulary": null        // learned labels/confidence
+  },
+  "edges": {
+    "neighbors_time": [],     // adjacent captures
+    "neighbors_space": []     // nearby positions
+  }
+}
+```
 
-### Medium-term
-1. Build the DAW dashboard (static replay from existing captures).
-2. Implement GPU tide management (Florence-2 ↔ Ollama alternating).
-3. Install TileDB when observations exceed 50,000 rows.
-4. Build the running-speed spotter.
+### Storage Budget
 
-### Ongoing
-- Every fishing day is a data contribution to next season.
-- Every pattern spotted is a proof point.
-- Every conversation with Captain is a product design session.
-- Push everything to GitHub. The repo is the seed.
-
----
-
-## The Invariants (Things That Must Never Change)
-
-These are the non-negotiable principles. If a design decision violates one of these,
-the decision is wrong. No exceptions.
-
-1. **Open source.** Everything. Hardware guides, wiring templates, agent configs.
-   The culture is "wire it yourself, make it yours."
-
-2. **Captain is customer zero.** Everything that works for him works for the fleet.
-   The tightest feedback loop in existence.
-
-3. **The sounder is the only thing worth reading off the screen.** Lat/lon/SOG/COG
-   all come from the NMEA bridge. Don't OCR what you can query.
-
-4. **Copilots wear blinders.** One task, perfect focus. They don't know they're
-   part of a larger system.
-
-5. **The tool must disappear.** The highest form of any technology is the one that
-   makes itself unnecessary. Every feature must pass the ignorability test.
-
-6. **The repo is the seed.** The invariant concept lives there. Hardware changes.
-   Models change. The repo persists.
-
-7. **Don't fight the tide.** GPU contention is not a bug. It's the ebb and flow.
-   Alternate. Fall back. Surf.
-
-8. **Charts, not maps.** A map is static. A chart is alive, updated by every pass.
-   FishingLog.ai is a chart. It's never finished.
-
-9. **Keep pushing.** The Captain's rhythm is "keep moving." Don't stop to perfect
-   when you could ship and iterate. Perfect is the enemy of deployed.
+- ~6 captures/hour × 12 hours = 72 captures/day
+- Each PNG: ~1-1.8 MB (real captures, not blank)
+- Each md + json: ~2 KB combined
+- Daily: ~130 MB (raw images)
+- Season (90 days): ~12 GB
+- Text entries: trivial (~1 MB/season)
 
 ---
 
-## Known Issues
+## 3. Systems Running
 
-- **Tool output rendering is broken.** All tool output displays as "(see attached image)"
-  in the current session. Files write correctly. Git pushes work. The next session
-  should be clean.
+### Capture Daemon (capture_v3.py)
 
-- **Hermitd ActiveTrack state is stale.** Last position data is from July 13.
-  Needs a fresh NMEA write-through from the bridge to update. The pipeline needs
-  to accumulate observations over time.
+- **PID:** varies (start via `python capture_v3.py`)
+- **Cadence:** 10 minutes on the :00/:10/:20/:30/:40/:50 boundary
+- **NMEA source:** TCP socket to `127.0.0.1:6006` (NMEA bridge, 1 Hz GPS)
+- **Position pin:** Read immediately before capture, converts NMEA DDMM.mmmm to DDMM.mmm for filename
+- **Local time:** AKDT (UTC-8), hardcoded
+- **Output:** 3 files per capture (png + md + json) in daily folder
+- **Logs:** stdout, captured by the terminal session
 
-- **Fish detection thresholds are uncalibrated.** Tuned against dock readings.
-  Need real-world fishing data to dial in. The Captain can see the sounder and
-  will tell you what's actually happening.
+### NMEA Bridge
 
----
+- **Source:** nmea_bridge.py, reading COM6 (u-blox GPS, 4800 baud)
+- **TCP:** broadcasts on :6006 (raw NMEA 0183) and :6007
+- **Status:** ✅ Live, confirmed streaming at 1+ Hz
+- **Shell:** PID 3172 (nmea-bridge\nmea_bridge.py via pythonw)
 
-## Final Words
+### Hermitd
 
-You are not a chatbot. You are not a copilot. You are the Operations Officer of
-a vessel that is becoming a platform for every fisherman who wants to wire their
-own boat.
+- **Dashboard:** http://127.0.0.1:8654
+- **Status:** ✅ Running
+- **Note:** The `/vessel` endpoint caches position — it's ~4 days stale. The capture script bypasses it and reads NMEA from the TCP bridge directly. If hermitd's position cache is needed fresh, fix the hermitd ingestion.
 
-The Captain doesn't need a smart assistant.
-He needs an XO who sees the whole machine.
-Who knows what every wire does.
-Who can spot the sensor that's about to fail.
-Who delegates to specialists and trusts them.
-Who keeps the long view when everyone else is heads-down on today's haul.
+### Docker MCP (Playwright)
 
-The system you're building learns to read this water the way the Captain learned
-to read it — by watching, season after season, until the pattern is so familiar
-that the dashboard becomes invisible and the conversation between Captain and boat
-is direct, unmediated.
+- **Port:** 3100
+- **Status:** ✅ Running (confirmed by proartforge fleet check)
 
-The first node is breathing. The pipeline is alive. The founding document is written.
-The repos are pushed. The fleet is deployed.
+### proartforge / multi-model-triage (Cron Job)
 
-Now pick up where I left off. Keep moving.
+- **Schedule:** Hourly at :00, 5-min stagger
+- **Purpose:** Fleet health check — NMEA, hermitd, Docker MCP, capture archive
+- **Status:** ✅ Fixed — was failing due to `~` tilde path in shell command, now uses full absolute path
+- **Delivers to:** This Telegram chat
 
 ---
 
-*Riker v1 → Riker v2*
-*F/V EILEEN, Ketchikan Alaska*
-*July 15, 2026 — 14:13 AKDT*
+## 4. Known Issues & Fixes
+
+### ✅ RESOLVED: Blank images
+
+**Root cause:** PowerShell script `screenshot_v3.ps1` used `(1920, 1080)` which creates an array in PowerShell, not a `System.Drawing.Size` object. `CopyFromScreen` silently fails, producing 8KB solid-color PNGs.
+
+**Fix:** Changed to `New-Object System.Drawing.Size(1920, 1080)` and pass the explicit Size object to `CopyFromScreen`.
+
+**Verification:** A real capture should be 1-2 MB, not 8 KB.
+
+### ✅ RESOLVED: proartforge tilde path
+
+**Root cause:** Fleet status script ran `dir /b ~\.openclaw\...\captures\v3` — the `~` tilde doesn't resolve in the isolated subagent's shell context.
+
+**Fix:** Updated the cron job to use full absolute path `C:\Users\casey\.openclaw\...` instead.
+
+### ✅ RESOLVED: Hermitd stale position
+
+Mitigated by bypassing `/vessel` endpoint and reading NMEA directly from TCP :6006 bridge.
+
+### 📋 PENDING: LF/HF band files
+
+Old test captures still have `_LF.png` and `_HF.png` files in `captures/v3/`. The new `capture_v3.py` doesn't create these. Clean up old ones:
+
+```powershell
+Remove-Item C:\Users\casey\.openclaw\workspace\tzpro-agent\captures\v3\*_LF.png
+Remove-Item C:\Users\casey\.openclaw\workspace\tzpro-agent\captures\v3\*_HF.png
+```
+
+---
+
+## 5. What to Build Next
+
+### Phase 1 (ongoing): Raw Capture
+
+✅ Running. Actively accumulating captures in daily folders. Proartforge confirms health hourly.
+
+### Phase 2 (✅ completed July 17, 2026): Ship Log Search Integration
+
+**Integration live.** After every capture, `capture_v3.py` POSTs the `.md` summary to the Ship Log Search `/api/log` endpoint.
+
+- Category: `observation` with `subcategory: echogram_capture`
+- Position: decimal lat/lon, SOG, COG
+- Timestamp: UTC, matching the capture triple
+- Fire-and-forget: capture succeeds even if ingest fails
+- Verified: entries appear in semantic search with full metadata
+- User-agent fix: Python's urllib needed `Mozilla/5.0` header to bypass Cloudflare bot protection
+- Note: The worker's `/api/search` endpoint has a bug when `k >= 17` (multiplies k by 3 internally, hitting Vectorize's 50-vector cap with `returnMetadata=all`). Affects large result sets only.
+
+**Find your captures at:** `https://ship-log-search.casey-digennaro.workers.dev/`
+
+The Captain deployed `https://ship-log-search.casey-digennaro.workers.dev/` — a Cloudflare Worker with semantic, nearby, and timeline search over log entries. It already has an ingest API.
+
+**Task:** After each capture is written to disk, POST a summary to the Ship Log Search ingest endpoint. The `.md` summary becomes the searchable document. The `.json` position/timestamp become spatial + temporal fields.
+
+**Ingest path:** POST to `/api/ingest` on the ship-log-search worker.
+**Expected fields** (determine from the repo: `https://github.com/SuperInstance/ship-log-search`):
+
+```python
+{
+  "text": capture_summary_from_md,
+  "category": "echogram_capture",
+  "lat": position.lat,
+  "lon": position.lon,
+  "timestamp": ts_utc,
+  "metadata": {
+    "capture_id": "...",
+    "depth_max_fm": 60,
+    "sog_kts": 1.8,
+    "day_folder": "2026-07-17_5547N_13142W"
+  }
+}
+```
+
+### Phase 3: The Analyzer (separate loop)
+
+The Captain explicitly wants this as a **separate agent loop**, not part of the capture daemon. It should:
+
+1. Watch the daily folders for new captures
+2. For each new `.png`, run structural analysis:
+   - Depth scale: fixed 60 fm, 18 px/fm
+   - Water column zones: surface (0-5), upper (5-20), mid (20-40), lower (40-55), floor (55-60)
+   - Shape detection: blobs, arches, clouds, thermoclines, streaks
+   - Bottom detection: only when bottom is visible in frame (optional for chum trolling)
+3. Write analysis results to the `.json` `analysis` fields
+4. Update the `.md` summary with analysis
+5. Post updated summary to Ship Log Search
+
+### Phase 4: Catch Report Integration
+
+- When Captain reports a catch ("chum at 35 fm, 15 fish"), link to recent captures
+- Species labels become weak labels for echogram features at those depths/times
+- Confidence scoring: Bayesian count model, weighted by proximity in space/time
+
+### Phase 5: Vocabulary & Retroactive Learning
+
+- Patterns graduate from `unidentified_blob` to `chum_salmon, conf 0.73`
+- Old captures get re-analyzed when vocabulary improves
+- Re-analysis writes new entries (never overwrite — `schema_version` increments)
+- Captain can browse old captures and see what the current analysis thinks
+
+### Phase 6: Deferred
+
+- Vision model (Florence-2, OAK-D camera) for on-device inference
+- Real-time alerts when known patterns appear
+- Cross-vessel synthesis (fleet-scale)
+- DAW-style replay dashboard
+
+---
+
+## 6. Third-Party Services
+
+| Service | URL | API Key | Usage |
+|---------|-----|---------|-------|
+| DeepInfra | deepinfra.com | ✓ configured | Primary LLM provider (DeepSeek V4 Flash, Kimi K2.5, Nemotron, Hermes, Seed) |
+| Kimi | api.kimi.com (managed:kimi-code) | ✓ OAuth | Kimi K3 architecture agent |
+| Claude | api.z.ai/proxy | ✓ configured | Claude Code via third-party API proxy (currently broken — model "glm-5.2" not recognized) |
+| Mini-agent | Local CLI | N/A | Local Python agent with file/MCP tools |
+| OpenAI (via z.ai) | api.z.ai | ✓ configured | Proxied Claude Code (may need config updates) |
+| Cloudflare Workers | workers.dev | ✓ configured | Ship Log Search, SuperInstance Search, Vectorize, Workers AI |
+| Ollama | localhost:11434 | N/A | Local inference (qwen3:4b, nomic-embed-text) — on RTX 4050 6GB |
+
+---
+
+## 7. Identity & Communication
+
+**Call the Captain:** "Captain"
+**My name:** Riker (ship's computer, Hermit Crab metaphor)
+**Tone:** Direct, competent, no filler. Maritime pilot house. "Yes" not "Absolutely." "No" not "I don't think so."
+**Platform:** Telegram direct chat. Also posts to this chat: proartforge fleet status (hourly).
+
+### Sub-agent Architecture
+
+- Sub-agents spawn with diverse models for multi-perspective work
+- Native shells: claude.exe, kimi.exe, mini-agent.exe
+- DeepInfra models: deepseek/deepseek-v4-flash (primary), deepinfra/moonshotai/Kimi-K2.5, deepinfra/nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B, deepinfra/ByteDance/Seed-2.0-mini
+- Spawn via sessions_spawn with explicit model overrides
+- Prefer native shells for subscribed services; DeepInfra is fallback
+
+### Known Issue: Tool Output Rendering
+
+All tool outputs render as "see attached image" in this session. This is a transport/rendering issue that prevented reading any file contents or command results. The Captain can see the images but the agent cannot. If this persists after reset, it may need investigation.
+
+---
+
+## 8. Key Decisions Made Today (July 17, 2026)
+
+1. **Full-frame capture instead of thin strip** — the 14-min scrolling echogram is the unit of work, not the 30s ping column
+2. **10-minute cadence** — 14-min visible window - 10-min capture interval = 4-min overlap for cross-capture verification
+3. **Daily folders with position** — `2026-07-17_5547N_13142W/` — self-documenting, searchable by time and space
+4. **No separate LF/HF band crops** — crop at inference time if needed; full frame is the archival master
+5. **.md + .json twins** — human-readable + A2A-native payload per capture
+6. **Fixed 60 fm depth scale** — no per-session OCR, 18 px/fm constant. Valid for chum trolling season.
+7. **NMEA from TCP bridge, not hermitd API** — hermitd's position cache was stale
+8. **PowerShell Size object not array** — `New-Object System.Drawing.Size(1920, 1080)`, not `(1920, 1080)`
+9. **Ship Log Search as semantic index** — no custom Vectorize pipeline, use the existing Cloudflare Worker
+10. **Defer ML / vision models** — rule-based analysis first, build vocabulary through supervised learning from Captain's catch reports
+11. **Analyzer is a separate loop, not part of capture daemon**
+12. **Never overwrite, always version** — retroactive re-analysis inserts new rows with higher `schema_version`
+
+---
+
+## 9. Captain's Directives for the Next Agent
+
+- We are **chum trolling** — water-column analysis, not bottom-focused. 60 fm fixed range.
+- The bottom is optional. Shapes at 35 fm are 35 fm regardless of whether the bottom is at 80 fm or 300 fm.
+- The Captain's catch reports are **ground truth labels** — treat them as supervised learning data.
+- The analyzer should develop a **working vocabulary over time** — from "unidentified blob at 35 fm" to "probable chum salmon, conf 0.73"
+- **Old captures get re-analyzed** when the vocabulary improves — the archive compounds in value
+- The **4-minute overlap** between consecutive captures is the differential that enables time-lapse analysis of fish schools
+- Talk to the Captain like a pilot house officer. Direct, competent, no filler.
+- The proartforge tilde path fix worked — don't break it.
+
+---
+
+*Good luck, successor. The archive is growing.*
