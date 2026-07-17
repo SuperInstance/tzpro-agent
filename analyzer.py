@@ -1,0 +1,766 @@
+#!/usr/bin/env python3
+"""analyzer.py — Echogram analysis watcher for the tzpro-agent pipeline.
+
+Watches captures/v3/ for new .png files, runs computer-vision analysis on
+the dual-band fish finder display, and records results alongside the capture.
+
+Requirements: opencv-python-headless, numpy
+
+Display layout (full-frame 1920x1080):
+  LF band:   x=8..945   (~937px)
+  HF band:   x=950..1890 (~940px)
+  Divider:   x=945 (white vertical)
+  Depth scale strip on right edge of HF band: x≈1870-1890
+  Range: 60 fm → 18 px/fathom
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import time
+import urllib.request
+import urllib.error
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
+from typing import Optional
+
+import cv2
+import numpy as np
+
+# ── Config ─────────────────────────────────────────────────────────
+CAPTURES_DIR = Path(__file__).parent.resolve() / "captures" / "v3"
+SHIP_LOG_URL = "https://ship-log-search.casey-digennaro.workers.dev/api/log"
+SHIP_LOG_TIMEOUT_S = 5
+SCAN_INTERVAL_S = 60
+DEPTH_MAX_FM = 60
+PX_PER_FM = 1080.0 / DEPTH_MAX_FM  # 18.0
+
+# Band crop regions (x offsets on 1920-wide frame)
+LF_X_START = 8
+LF_X_END = 945
+HF_X_START = 950
+HF_X_END = 1890
+
+# Depth zones in pixel rows at 18 px/fm
+#   Surface:  0-5   fm  → rows   0-90
+#   Upper:    5-20  fm  → rows  90-360
+#   Mid:     20-40  fm  → rows 360-720   (target chum zone)
+#   Lower:   40-55  fm  → rows 720-990
+#   Floor:   55-60  fm  → rows 990-1080
+ZONES: dict[str, tuple[int, int]] = {
+    "surface": (0, 90),
+    "upper": (90, 360),
+    "mid": (360, 720),
+    "lower": (720, 990),
+    "floor": (990, 1080),
+}
+
+# Blob detection
+BLOB_MIN_SIZE_PX = 50
+INTENSITY_THRESHOLD = 50  # grayscale threshold for signal vs background
+
+ANALYZED_SCHEMA_VERSION = 2
+
+LOCAL_TZ = timezone(timedelta(hours=-8))
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+log = logging.getLogger("analyzer")
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  Band Crop
+# ══════════════════════════════════════════════════════════════════════
+
+def crop_bands(img: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Crop LF (left) and HF (right) bands from full 1920x1080 BGR frame."""
+    lf = img[0:1080, LF_X_START:LF_X_END]
+    hf = img[0:1080, HF_X_START:HF_X_END]
+    return lf, hf
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  Depth Zone Profile
+# ══════════════════════════════════════════════════════════════════════
+
+def depth_zone_profile(
+    band: np.ndarray, zone_name: str, y_start: int, y_end: int,
+) -> dict:
+    """Compute per-depth-zone metrics from a BGR band crop.
+
+    Converts to grayscale, computes per-column then per-zone aggregate:
+    mean_intensity, peak_intensity, variance, pixel_count_above_threshold.
+    """
+    gray = cv2.cvtColor(band, cv2.COLOR_BGR2GRAY)
+    zone = gray[y_start:y_end, :]
+    if zone.size == 0:
+        return {
+            "zone": zone_name,
+            "depth_range_fm": (
+                round(y_start / PX_PER_FM, 1),
+                round(y_end / PX_PER_FM, 1),
+            ),
+            "mean_intensity": 0.0,
+            "peak_intensity": 0.0,
+            "variance": 0.0,
+            "pixel_count_above_threshold": 0,
+        }
+
+    flat = zone.ravel()
+    return {
+        "zone": zone_name,
+        "depth_range_fm": (
+            round(y_start / PX_PER_FM, 1),
+            round(y_end / PX_PER_FM, 1),
+        ),
+        "mean_intensity": float(flat.mean()),
+        "peak_intensity": int(flat.max()),
+        "variance": float(flat.var()),
+        "pixel_count_above_threshold": int((flat > INTENSITY_THRESHOLD).sum()),
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  Column Delta Analysis
+# ══════════════════════════════════════════════════════════════════════
+
+def column_delta(band: np.ndarray) -> dict:
+    """Compare leftmost 5% vs rightmost 5% of columns per depth zone.
+
+    The visible window is ~14 min of scrolling history. Captures happen
+    every 10 min, so the left edge is ~4 min older than the previous
+    capture's right edge — this reveals temporal change between frames.
+    """
+    gray = cv2.cvtColor(band, cv2.COLOR_BGR2GRAY)
+    w = gray.shape[1]
+    take = max(1, w // 20)  # 5%
+
+    left_cols = gray[:, :take]
+    right_cols = gray[:, w - take :]
+
+    deltas: dict = {}
+    for zone_name, (y_start, y_end) in ZONES.items():
+        lz = left_cols[y_start:y_end, :]
+        rz = right_cols[y_start:y_end, :]
+        if lz.size == 0 or rz.size == 0:
+            deltas[zone_name] = None
+            continue
+        lm = float(lz.mean())
+        rm = float(rz.mean())
+        deltas[zone_name] = {
+            "left_mean": round(lm, 1),
+            "right_mean": round(rm, 1),
+            "delta": round(rm - lm, 1),
+        }
+    return deltas
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  Blob Detection (echo returns)
+# ══════════════════════════════════════════════════════════════════════
+
+def detect_blobs(band: np.ndarray) -> list[dict]:
+    """Detect significant echo returns via connected components.
+
+    Steps:
+      1. Convert to grayscale.
+      2. Adaptive threshold at the 50th percentile of non-background pixels.
+      3. Morphological open to remove speckle noise.
+      4. connectedComponentsWithStats, filter by min area.
+    Returns list sorted by area descending.
+    """
+    gray = cv2.cvtColor(band, cv2.COLOR_BGR2GRAY)
+    h, w = gray.shape
+
+    # Adaptive threshold
+    above_bg = gray[gray > 5]
+    if above_bg.size == 0:
+        return []
+    thresh_val = max(INTENSITY_THRESHOLD, int(np.percentile(above_bg, 50)))
+    _, binary = cv2.threshold(gray, thresh_val, 255, cv2.THRESH_BINARY)
+
+    # Morphological cleanup
+    kernel = np.ones((3, 3), np.uint8)
+    binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
+
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
+        binary, connectivity=8,
+    )
+
+    blobs: list[dict] = []
+    for i in range(1, num_labels):
+        area = int(stats[i, cv2.CC_STAT_AREA])
+        if area < BLOB_MIN_SIZE_PX:
+            continue
+
+        x = int(stats[i, cv2.CC_STAT_LEFT])
+        y = int(stats[i, cv2.CC_STAT_TOP])
+        bw = int(stats[i, cv2.CC_STAT_WIDTH])
+        bh = int(stats[i, cv2.CC_STAT_HEIGHT])
+        cx, cy = centroids[i]
+
+        mask = (labels == i).astype(np.uint8)
+        mean_int = float(cv2.mean(gray, mask=mask)[0])
+
+        blobs.append({
+            "centroid_x_px": int(round(cx)),
+            "centroid_y_px": int(round(cy)),
+            "centroid_depth_fm": round(cy / PX_PER_FM, 1),
+            "width_px": bw,
+            "height_px": bh,
+            "area_px": area,
+            "mean_intensity": round(mean_int, 1),
+            "aspect_ratio": round(bw / max(bh, 1), 2),
+        })
+
+    blobs.sort(key=lambda b: b["area_px"], reverse=True)
+    return blobs
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  Thermocline Detection
+# ══════════════════════════════════════════════════════════════════════
+
+def detect_thermoclines(band: np.ndarray) -> list[dict]:
+    """Detect horizontal bands of consistent gradient (thermoclines).
+
+    Uses horizontal Sobel gradient averaged per row, then finds contiguous
+    blocks of rows where gradient exceeds the mean by 0.5 sigma.
+    Adjacent bands within 5 rows are merged.
+    """
+    gray = cv2.cvtColor(band, cv2.COLOR_BGR2GRAY)
+    h = gray.shape[0]
+
+    sobelx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
+    grad_mag = np.abs(sobelx)
+    row_grad = grad_mag.mean(axis=1)  # (h,)
+
+    mean_g = float(row_grad.mean())
+    std_g = float(row_grad.std())
+    if std_g < 1e-6:
+        return []
+    threshold = mean_g + 0.5 * std_g
+
+    above = (row_grad > threshold).astype(np.int8)
+    diffs = np.diff(above, prepend=0, append=0)
+
+    starts = np.where(diffs == 1)[0]
+    ends = np.where(diffs == -1)[0]
+
+    if len(starts) == 0:
+        return []
+
+    # Merge adjacent bands within 5 rows
+    raw = [[int(s), int(e)] for s, e in zip(starts, ends) if int(e) - int(s) >= 3]
+    if not raw:
+        return []
+
+    merged = [raw[0][:]]
+    for s, e in raw[1:]:
+        if s - merged[-1][1] <= 5:
+            merged[-1][1] = e
+        else:
+            merged.append([s, e])
+
+    layers: list[dict] = []
+    for y_start, y_end in merged:
+        y_mid = (y_start + y_end) / 2.0
+        band_grad = float(row_grad[y_start:y_end].mean())
+
+        if band_grad > mean_g + std_g:
+            confidence = "high"
+        elif band_grad > mean_g + 0.5 * std_g:
+            confidence = "medium"
+        else:
+            confidence = "low"
+
+        layers.append({
+            "depth_range_fm": (
+                round(y_start / PX_PER_FM, 1),
+                round(y_end / PX_PER_FM, 1),
+            ),
+            "center_depth_fm": round(y_mid / PX_PER_FM, 1),
+            "thickness_px": y_end - y_start,
+            "mean_gradient": round(band_grad, 2),
+            "confidence": confidence,
+        })
+
+    return layers
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  Bottom Detection (optional, additive)
+# ══════════════════════════════════════════════════════════════════════
+
+def detect_bottom(band: np.ndarray) -> Optional[dict]:
+    """Detect the bottom return — brightest continuous horizontal feature.
+
+    Scans downward from 30 fm (row ~540) for the brightest row in grayscale.
+    If found, evaluates continuity via coefficient of variation across that row.
+    Returns None when no clear bottom is visible.
+    """
+    gray = cv2.cvtColor(band, cv2.COLOR_BGR2GRAY)
+    h = gray.shape[0]
+
+    mid_row = 540  # ~30 fm
+    if mid_row >= h:
+        return None
+
+    search = gray[mid_row:, :]
+    if search.size == 0:
+        return None
+
+    row_means = search.mean(axis=1)
+    brightest_offset = int(np.argmax(row_means))
+    brightest_row = mid_row + brightest_offset
+    peak_intensity = float(row_means[brightest_offset])
+
+    # Continuity: CV of pixel values along that row
+    row_pixels = gray[brightest_row, :].astype(np.float64)
+    row_mean = float(row_pixels.mean())
+    row_std = float(row_pixels.std())
+
+    if row_mean < 30:
+        return None  # too dark, no bottom visible
+
+    cv_val = row_std / max(row_mean, 1e-6)
+
+    if cv_val > 1.5:
+        confidence = "low"
+    elif cv_val > 0.8:
+        confidence = "medium"
+    else:
+        confidence = "high"
+
+    return {
+        "bottom_depth_fm": round(brightest_row / PX_PER_FM, 1),
+        "row_y": brightest_row,
+        "peak_intensity": round(peak_intensity, 1),
+        "row_mean_intensity": round(row_mean, 1),
+        "row_continuity_cv": round(cv_val, 2),
+        "confidence": confidence,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  Per-band orchestrator
+# ══════════════════════════════════════════════════════════════════════
+
+def analyze_single(band: np.ndarray) -> dict:
+    """Run all analyses on one BGR band. Returns structured result dict."""
+    # Depth zone profiles
+    zone_profiles: dict[str, dict] = {}
+    for zname, (y0, y1) in ZONES.items():
+        zone_profiles[zname] = depth_zone_profile(band, zname, y0, y1)
+
+    blobs = detect_blobs(band)
+    thermos = detect_thermoclines(band)
+    bottom = detect_bottom(band)
+
+    return {
+        "zone_profiles": zone_profiles,
+        "column_delta": column_delta(band),
+        "blobs": blobs,
+        "blob_count": len(blobs),
+        "thermoclines": thermos,
+        "thermocline_count": len(thermos),
+        "bottom": bottom,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  Caption Generation
+# ══════════════════════════════════════════════════════════════════════
+
+def generate_caption(lf: dict, hf: dict) -> str:
+    """Generate a 2-3 sentence natural-language summary of both bands."""
+    parts: list[str] = []
+
+    # ── Bottom ──
+    lf_bottom = lf.get("bottom")
+    hf_bottom = hf.get("bottom")
+    bottom = lf_bottom or hf_bottom
+    if bottom and bottom.get("confidence") != "low":
+        parts.append(
+            f"Bottom detected at {bottom['bottom_depth_fm']} fm "
+            f"({bottom['confidence']} confidence)."
+        )
+    else:
+        parts.append("No clear bottom return detected in the displayed range.")
+
+    # ── Thermoclines (prefer LF) ──
+    thermo_count = lf.get("thermocline_count", 0)
+    if thermo_count > 0:
+        depths = [
+            str(t["center_depth_fm"]) + " fm"
+            for t in lf.get("thermoclines", [])
+        ]
+        depth_str = ", ".join(depths[:3])
+        parts.append(
+            f"{thermo_count} thermal layer{'s' if thermo_count != 1 else ''} "
+            f"detected at {depth_str}."
+        )
+
+    # ── Blobs / echo returns ──
+    blob_count = lf.get("blob_count", 0)
+    if blob_count > 0:
+        blobs = lf.get("blobs", [])
+        zone_counts: dict[str, int] = {z: 0 for z in ZONES}
+        for b in blobs:
+            d = b["centroid_depth_fm"]
+            if d < 5:
+                zone_counts["surface"] += 1
+            elif d < 20:
+                zone_counts["upper"] += 1
+            elif d < 40:
+                zone_counts["mid"] += 1
+            elif d < 55:
+                zone_counts["lower"] += 1
+            else:
+                zone_counts["floor"] += 1
+        active = [z for z, c in zone_counts.items() if c > 0]
+        parts.append(
+            f"{blob_count} echo return{'s' if blob_count != 1 else ''} "
+            f"detected in the LF band across "
+            f"{len(active)} zone{'s' if len(active) != 1 else ''} "
+            f"({', '.join(active)})."
+        )
+    else:
+        parts.append("No significant echo returns in the LF band.")
+
+    # ── Mid-water intensity (target chum zone) ──
+    mid = lf.get("zone_profiles", {}).get("mid", {})
+    mid_mean = mid.get("mean_intensity", 0)
+    mid_peak = mid.get("peak_intensity", 0)
+    parts.append(
+        f"Mid-water column (20-40 fm) mean intensity "
+        f"{mid_mean:.1f}/255, peak {mid_peak}/255."
+    )
+
+    return " ".join(parts)
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  Ship Log POST
+# ══════════════════════════════════════════════════════════════════════
+
+def update_ship_log(meta: dict, analysis: dict, caption: str) -> None:
+    """POST enriched analysis payload to Ship Log Search."""
+    try:
+        pos = meta.get("position", {})
+        capture_id = meta.get("capture_id", "unknown")
+        ts_utc = meta.get("ts_utc", datetime.now(timezone.utc).isoformat())
+
+        lf = analysis.get("lf", {})
+        bottom = lf.get("bottom")
+        mid = lf.get("zone_profiles", {}).get("mid", {})
+
+        payload = {
+            "text": caption,
+            "category": "observation",
+            "subcategory": "echogram_analysis",
+            "timestamp": ts_utc,
+            "lat": pos.get("lat_dd"),
+            "lon": pos.get("lon_dd"),
+            "location_name": f"{pos.get('lat_ddmm', '?')}N/{pos.get('lon_ddmm', '?')}W",
+            "id": f"analysis_{capture_id}",
+            "metadata": {
+                "capture_id": capture_id,
+                "type": "echogram_analysis",
+                "schema_version": ANALYZED_SCHEMA_VERSION,
+                "bottom_depth_fm": bottom["bottom_depth_fm"] if bottom else None,
+                "bottom_confidence": bottom["confidence"] if bottom else None,
+                "thermocline_count": lf.get("thermocline_count", 0),
+                "blob_count": lf.get("blob_count", 0),
+                "mid_zone_mean_intensity": mid.get("mean_intensity"),
+                "mid_zone_peak_intensity": mid.get("peak_intensity"),
+            },
+        }
+
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            SHIP_LOG_URL,
+            data=data,
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36"
+                ),
+            },
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=SHIP_LOG_TIMEOUT_S)
+        log.info("Ship Log analysis ingested: %s", capture_id)
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError) as e:
+        log.warning("Ship Log update failed (non-blocking): %s", e)
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  File I/O
+# ══════════════════════════════════════════════════════════════════════
+
+def load_meta(json_path: Path) -> Optional[dict]:
+    """Load capture JSON metadata. Returns None on failure."""
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        log.warning("Cannot read %s: %s", json_path.name, e)
+        return None
+
+
+def needs_analysis(meta: dict) -> bool:
+    """Return True if schema_version < ANALYZED_SCHEMA_VERSION."""
+    analysis = meta.get("analysis", {})
+    sv = analysis.get("schema_version", 0)
+    return sv < ANALYZED_SCHEMA_VERSION
+
+
+def write_analysis_json(
+    json_path: Path, meta: dict, analysis: dict, caption: str,
+) -> bool:
+    """Embed analysis results into capture JSON."""
+    try:
+        meta["analysis"] = {
+            "schema_version": ANALYZED_SCHEMA_VERSION,
+            "heuristic": {
+                "lf": analysis["lf"],
+                "hf": analysis["hf"],
+            },
+            "caption": caption,
+            "vocabulary": None,
+        }
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2, default=str)
+        log.info("JSON analysis written: %s", json_path.name)
+        return True
+    except Exception as e:
+        log.warning("write_analysis_json failed: %s", e)
+        return False
+
+
+def update_markdown(md_path: Path, analysis: dict, caption: str) -> bool:
+    """Insert or replace ## Analysis section in the markdown twin."""
+    if not md_path.exists():
+        log.warning("MD not found: %s", md_path)
+        return False
+
+    try:
+        lf = analysis.get("lf", {})
+        hf = analysis.get("hf", {})
+        now_str = datetime.now(LOCAL_TZ).strftime("%H:%M:%S AKDT")
+
+        lines = [
+            "## Analysis",
+            "",
+            caption,
+            "",
+            "### LF Band",
+            "",
+        ]
+
+        # Bottom
+        bottom = lf.get("bottom") or hf.get("bottom")
+        if bottom:
+            lines.append(
+                f"- **Bottom:** {bottom['bottom_depth_fm']} fm "
+                f"({bottom['confidence']} confidence)"
+            )
+            lines.append("")
+
+        # Zone profiles
+        for label, band_data in [("LF", lf), ("HF", hf)]:
+            zones = band_data.get("zone_profiles", {})
+            if not zones:
+                continue
+            lines.append(f"**{label} zone intensities (mean / peak):**")
+            for zname in ("surface", "upper", "mid", "lower", "floor"):
+                z = zones.get(zname)
+                if z:
+                    lines.append(
+                        f"  - {zname.capitalize():>8}  {z['mean_intensity']:.1f} / {z['peak_intensity']}"
+                    )
+            lines.append("")
+
+        # Blobs
+        blobs_lf = lf.get("blobs", [])
+        lines.append(f"- **Echo returns (LF):** {len(blobs_lf)} blob(s) detected")
+        if blobs_lf:
+            top = blobs_lf[0]
+            lines.append(
+                f"  - Largest: {top['centroid_depth_fm']} fm, "
+                f"{top['area_px']} px², intensity {top['mean_intensity']:.1f}"
+            )
+            if len(blobs_lf) > 1:
+                top2 = blobs_lf[1]
+                lines.append(
+                    f"  - 2nd: {top2['centroid_depth_fm']} fm, "
+                    f"{top2['area_px']} px², intensity {top2['mean_intensity']:.1f}"
+                )
+        lines.append("")
+
+        # Thermoclines
+        thermos = lf.get("thermoclines", [])
+        if thermos:
+            depths = ", ".join(f"{t['center_depth_fm']} fm" for t in thermos[:4])
+            lines.append(
+                f"- **Thermoclines (LF):** {len(thermos)} layer(s) at {depths}"
+            )
+            lines.append("")
+
+        lines.append(f"*Analyzed by analyzer.py at {now_str}*")
+
+        analysis_section = "\n".join(lines)
+
+        # Replace existing ## Analysis block or append
+        md_text = md_path.read_text(encoding="utf-8")
+        tag = "## Analysis"
+        before = md_text.split(tag, 1)[0].rstrip()
+        updated = before + "\n\n" + analysis_section + "\n"
+
+        md_path.write_text(updated, encoding="utf-8")
+        log.info("Markdown updated: %s", md_path.name)
+        return True
+    except Exception as e:
+        log.warning("update_markdown failed: %s", e)
+        return False
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  Watcher Loop
+# ══════════════════════════════════════════════════════════════════════
+
+def find_unanalyzed_captures() -> list[tuple[Path, Path, Path, dict]]:
+    """Scan captures/v3/ for .png files needing analysis.
+
+    Returns (png_path, json_path, md_path, meta) tuples.
+    """
+    if not CAPTURES_DIR.exists():
+        return []
+
+    results: list[tuple[Path, Path, Path, dict]] = []
+    for day_dir in sorted(CAPTURES_DIR.iterdir()):
+        if not day_dir.is_dir():
+            continue
+        for png_file in sorted(day_dir.glob("*.png")):
+            js = png_file.with_suffix(".json")
+            md = png_file.with_suffix(".md")
+            if not js.exists():
+                continue
+            meta = load_meta(js)
+            if meta is None:
+                continue
+            if not needs_analysis(meta):
+                continue
+            results.append((png_file, js, md, meta))
+
+    return results
+
+
+def process_capture(
+    png_path: Path, json_path: Path, md_path: Path, meta: dict,
+) -> bool:
+    """Run full analysis on a single capture frame. Returns success."""
+    log.info("Analyzing: %s", png_path.name)
+    try:
+        img = cv2.imread(str(png_path))
+        if img is None:
+            log.warning("Cannot read: %s", png_path)
+            return False
+        if img.shape != (1080, 1920, 3):
+            log.warning("Unexpected shape %s for %s; resizing", img.shape, png_path.name)
+            img = cv2.resize(img, (1920, 1080))
+
+        lf_band, hf_band = crop_bands(img)
+        analysis_lf = analyze_single(lf_band)
+        analysis_hf = analyze_single(hf_band)
+
+        analysis = {"lf": analysis_lf, "hf": analysis_hf}
+        caption = generate_caption(analysis_lf, analysis_hf)
+
+        write_analysis_json(json_path, meta, analysis, caption)
+        update_markdown(md_path, analysis, caption)
+        update_ship_log(meta, analysis, caption)
+
+        log.info("Analyzed OK: %s — %s", png_path.name, caption[:80])
+        return True
+
+    except Exception as e:
+        log.error("Analysis FAILED for %s: %s", png_path.name, e, exc_info=True)
+        return False
+
+
+def run_forever() -> None:
+    """Main watcher loop — scan every SCAN_INTERVAL_S."""
+    log.info("=" * 50)
+    log.info("analyzer.py starting")
+    log.info("Watching: %s", CAPTURES_DIR)
+    log.info("Scan: %ds interval", SCAN_INTERVAL_S)
+    log.info("Schema: v%d", ANALYZED_SCHEMA_VERSION)
+    log.info("=" * 50)
+
+    while True:
+        try:
+            candidates = find_unanalyzed_captures()
+            if candidates:
+                log.info("Pending: %d capture(s)", len(candidates))
+                for png, js, md, meta in candidates:
+                    process_capture(png, js, md, meta)
+            else:
+                log.debug("No pending captures")
+        except Exception as e:
+            log.error("Loop error: %s", e, exc_info=True)
+
+        time.sleep(SCAN_INTERVAL_S)
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  CLI
+# ══════════════════════════════════════════════════════════════════════
+
+def cli() -> None:
+    """CLI entry point."""
+    import sys
+
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print("Usage: python analyzer.py [--oneshot [<png_path>]]")
+        print("  (no args)      Watcher loop — scans every 60s")
+        print("  --oneshot      Analyze first unanalyzed capture")
+        print("  --oneshot <p>  Analyze specific PNG")
+        return
+
+    if "--oneshot" in sys.argv:
+        idx = sys.argv.index("--oneshot") + 1
+        if idx < len(sys.argv):
+            png_path = Path(sys.argv[idx])
+            if not png_path.exists():
+                print(f"File not found: {png_path}")
+                return
+            json_path = png_path.with_suffix(".json")
+            md_path = png_path.with_suffix(".md")
+            meta = load_meta(json_path) if json_path.exists() else {
+                "capture_id": png_path.stem,
+                "ts_utc": datetime.now(timezone.utc).isoformat(),
+                "ts_local": datetime.now(LOCAL_TZ).isoformat(),
+                "frame_file": png_path.name,
+                "display": {"depth_max_fm": DEPTH_MAX_FM},
+                "analysis": {"schema_version": 1},
+            }
+            process_capture(png_path, json_path, md_path, meta)
+        else:
+            candidates = find_unanalyzed_captures()
+            if not candidates:
+                print("No unanalyzed captures found.")
+                return
+            png, js, md, meta = candidates[0]
+            process_capture(png, js, md, meta)
+    else:
+        run_forever()
+
+
+if __name__ == "__main__":
+    cli()
