@@ -523,16 +523,27 @@ def needs_analysis(meta: dict) -> bool:
 def write_analysis_json(
     json_path: Path, meta: dict, analysis: dict, caption: str,
 ) -> bool:
-    """Embed analysis results into capture JSON."""
+    """Embed analysis results into capture JSON.
+
+    Preserves existing analysis.vocabulary (catch report labels) —
+    never overwrite supervised learning data.
+    """
     try:
+        existing = meta.get("analysis", {})
+        existing_vocab = existing.get("vocabulary", None)
+        existing_sv = existing.get("schema_version", 0)
+
+        # Don't downgrade schema_version — catch labels may have bumped it to 3+
+        new_sv = max(ANALYZED_SCHEMA_VERSION, existing_sv)
+
         meta["analysis"] = {
-            "schema_version": ANALYZED_SCHEMA_VERSION,
+            "schema_version": new_sv,
             "heuristic": {
                 "lf": analysis["lf"],
                 "hf": analysis["hf"],
             },
             "caption": caption,
-            "vocabulary": None,
+            "vocabulary": existing_vocab,  # preserve catch labels
         }
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2, default=str)

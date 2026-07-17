@@ -348,13 +348,14 @@ def annotate_capture(
     else:
         vocab.append(label)
         # Increment schema_version if not already at 3+
-        current_sv = analysis.get("schema_version", 0)
-        if current_sv < 3:
-            analysis["schema_version"] = 3
-            log.info(
-                "Schema version bumped to 3 (first catch label on %s)",
-                meta.get("capture_id", "?"),
-            )
+    # Always ensure schema_version >= 3 when catch labels exist
+    current_sv = analysis.get("schema_version", 0)
+    if current_sv < 3:
+        analysis["schema_version"] = 3
+        log.info(
+            "Schema version bumped to 3 (catch label on %s)",
+            meta.get("capture_id", "?"),
+        )
 
     # Update caption to reflect catch report
     current_caption = analysis.get("caption", "")
