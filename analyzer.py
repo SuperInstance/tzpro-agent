@@ -28,6 +28,9 @@ from typing import Optional
 import cv2
 import numpy as np
 
+# Phase 5: Vocabulary integration
+from vocabulary import annotate_blobs, aggregate_vocabulary
+
 # ── Config ─────────────────────────────────────────────────────────
 CAPTURES_DIR = Path(__file__).parent.resolve() / "captures" / "v3"
 SHIP_LOG_URL = "https://ship-log-search.casey-digennaro.workers.dev/api/log"
@@ -217,6 +220,15 @@ def detect_blobs(band: np.ndarray) -> list[dict]:
         })
 
     blobs.sort(key=lambda b: b["area_px"], reverse=True)
+
+    # Phase 5: Cross-reference with catch report vocabulary
+    try:
+        vocab = aggregate_vocabulary()
+        if vocab.get("total_labels", 0) > 0:
+            blobs = annotate_blobs(blobs, vocab=vocab)
+    except Exception:
+        pass  # vocabulary lookup is additive, never blocking
+
     return blobs
 
 
@@ -409,6 +421,7 @@ def generate_caption(lf: dict, hf: dict) -> str:
     if blob_count > 0:
         blobs = lf.get("blobs", [])
         zone_counts: dict[str, int] = {z: 0 for z in ZONES}
+        predicted_species: set = set()
         for b in blobs:
             d = b["centroid_depth_fm"]
             if d < 5:
@@ -421,13 +434,25 @@ def generate_caption(lf: dict, hf: dict) -> str:
                 zone_counts["lower"] += 1
             else:
                 zone_counts["floor"] += 1
+            # Phase 5: Check for vocabulary predictions
+            pred = b.get("prediction")
+            if pred and pred.get("species"):
+                predicted_species.add(pred["species"])
+
         active = [z for z, c in zone_counts.items() if c > 0]
-        parts.append(
+        blob_line = (
             f"{blob_count} echo return{'s' if blob_count != 1 else ''} "
             f"detected in the LF band across "
             f"{len(active)} zone{'s' if len(active) != 1 else ''} "
             f"({', '.join(active)})."
         )
+
+        if predicted_species:
+            blob_line += (
+                f" Vocabulary predicts: {', '.join(sorted(predicted_species))}."
+            )
+
+        parts.append(blob_line)
     else:
         parts.append("No significant echo returns in the LF band.")
 
@@ -733,15 +758,54 @@ def run_forever() -> None:
 #  CLI
 # ══════════════════════════════════════════════════════════════════════
 
+def analyze_all_pending(retroactive: bool = False) -> int:
+    """Analyze all pending or all captures (retroactive mode).
+
+    In retroactive mode, forces re-analysis of every capture regardless
+    of schema_version — applying current vocabulary to old data.
+    Returns count of captures analyzed.
+    """
+    if retroactive:
+        log.info("Retroactive re-analysis mode — scanning ALL captures")
+        count = 0
+        for day_dir in sorted(CAPTURES_DIR.iterdir()):
+            if not day_dir.is_dir():
+                continue
+            for png_file in sorted(day_dir.glob("*.png")):
+                js = png_file.with_suffix(".json")
+                md = png_file.with_suffix(".md")
+                if not js.exists():
+                    continue
+                meta = load_meta(js)
+                if meta is None:
+                    continue
+                process_capture(png_file, js, md, meta)
+                count += 1
+        log.info("Retroactive re-analysis complete: %d captures", count)
+        return count
+    else:
+        candidates = find_unanalyzed_captures()
+        log.info("Pending captures: %d", len(candidates))
+        for png, js, md, meta in candidates:
+            process_capture(png, js, md, meta)
+        return len(candidates)
+
+
 def cli() -> None:
     """CLI entry point."""
     import sys
 
     if "--help" in sys.argv or "-h" in sys.argv:
         print("Usage: python analyzer.py [--oneshot [<png_path>]]")
-        print("  (no args)      Watcher loop — scans every 60s")
-        print("  --oneshot      Analyze first unanalyzed capture")
-        print("  --oneshot <p>  Analyze specific PNG")
+        print("  (no args)        Watcher loop — scans every 60s")
+        print("  --oneshot        Analyze first unanalyzed capture")
+        print("  --oneshot <p>    Analyze specific PNG")
+        print("  --retroactive    Re-analyze ALL captures with current vocabulary")
+        return
+
+    if "--retroactive" in sys.argv:
+        count = analyze_all_pending(retroactive=True)
+        print(f"Retroactive re-analysis: {count} captures processed.")
         return
 
     if "--oneshot" in sys.argv:
