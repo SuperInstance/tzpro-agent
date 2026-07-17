@@ -281,18 +281,28 @@ The Captain deployed `https://ship-log-search.casey-digennaro.workers.dev/` — 
 **Dependencies:** Python-only: opencv-python-headless, numpy
 **Launch:** `python analyzer.py` (daemon) or `python analyzer.py --oneshot` (single)
 
-### Phase 4: Catch Report Integration
+### Phase 4 (✅ completed July 17, 2026): Catch Report Integration
 
-- When Captain reports a catch ("chum at 35 fm, 15 fish"), link to recent captures
-- Species labels become weak labels for echogram features at those depths/times
-- Confidence scoring: Bayesian count model, weighted by proximity in space/time
+**catch_link.py** — natural language parser + capture linker.
 
-### Phase 5: Vocabulary & Retroactive Learning
+- Parser handles real Captain speech: "chum at 35 fm, 15 fish", "8 sockeye at 25 fm"
+- Species aliases mapped (chum, sockeye/reds, coho/silver, pink/humpies, king/spring)
+- Links catch to nearest capture in time via Ship Log Search timeline query
+- Annotates capture JSON (schema_version 3, analysis.vocabulary array)
+- Duplicate labels (same species+depth) merge and average count
+- Posts catch entry to Ship Log Search with category=catch, linked_capture_id
+- Verified: "chum at 35 fm" returns 0.85 semantic match
 
-- Patterns graduate from `unidentified_blob` to `chum_salmon, conf 0.73`
-- Old captures get re-analyzed when vocabulary improves
-- Re-analysis writes new entries (never overwrite — `schema_version` increments)
-- Captain can browse old captures and see what the current analysis thinks
+**Usage:** `python catch_link.py link <species> <depth> <count>`
+**Next:** When Captain reports a catch, I call this module directly.
+
+### Phase 5 (next): Vocabulary & Retroactive Learning
+
+- Patterns graduate from `unidentified_blob` to `chum salmon, conf 0.73`
+- Catch reports provide ground truth labels for echogram features at specific depths
+- Bayesian accumulation: each catch report at depth X increases confidence for blobs at that depth
+- Old captures re-analyzed when vocabulary improves (schema_version increments)
+- The archive compounds in value over time
 
 ### Phase 6: Deferred
 
