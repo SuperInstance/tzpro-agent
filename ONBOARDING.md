@@ -261,19 +261,25 @@ The Captain deployed `https://ship-log-search.casey-digennaro.workers.dev/` — 
 }
 ```
 
-### Phase 3: The Analyzer (separate loop)
+### Phase 3 (✅ completed July 17, 2026): The Analyzer Loop
 
-The Captain explicitly wants this as a **separate agent loop**, not part of the capture daemon. It should:
+**Separate daemon launched.** `analyzer.py` runs alongside `capture_v3.py` as an independent watcher.
 
-1. Watch the daily folders for new captures
-2. For each new `.png`, run structural analysis:
-   - Depth scale: fixed 60 fm, 18 px/fm
-   - Water column zones: surface (0-5), upper (5-20), mid (20-40), lower (40-55), floor (55-60)
-   - Shape detection: blobs, arches, clouds, thermoclines, streaks
-   - Bottom detection: only when bottom is visible in frame (optional for chum trolling)
-3. Write analysis results to the `.json` `analysis` fields
-4. Update the `.md` summary with analysis
-5. Post updated summary to Ship Log Search
+**Analysis per capture:**
+- Crops LF (x=8-945) and HF (x=950-1890) bands from 1920×1080 frame
+- 5 depth zone profiles: mean/peak intensity, variance, pixel count above threshold
+- Column delta: leftmost vs rightmost 5% of columns reveals 4-min temporal gap
+- Blob detection: adaptive threshold + connectedComponentsWithStats, filtered by >50 px
+- Thermocline detection: horizontal Sobel gradient → contiguous row clusters
+- Bottom detection: additive scan from 30 fm downward (chum trolling compatible)
+
+**Outputs:**
+- JSON: `schema_version` → 2, `heuristic` populated with lf/hf dicts
+- Markdown: `## Analysis` section replaced with caption + zone intensities + summary
+- Ship Log Search: re-POSTs enriched text with analysis metadata
+
+**Dependencies:** Python-only: opencv-python-headless, numpy
+**Launch:** `python analyzer.py` (daemon) or `python analyzer.py --oneshot` (single)
 
 ### Phase 4: Catch Report Integration
 
