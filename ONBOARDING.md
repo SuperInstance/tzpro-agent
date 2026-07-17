@@ -296,13 +296,31 @@ The Captain deployed `https://ship-log-search.casey-digennaro.workers.dev/` — 
 **Usage:** `python catch_link.py link <species> <depth> <count>`
 **Next:** When Captain reports a catch, I call this module directly.
 
-### Phase 5 (next): Vocabulary & Retroactive Learning
+### Phase 5 (✅ completed July 17, 2026): Vocabulary & Retroactive Learning
 
-- Patterns graduate from `unidentified_blob` to `chum salmon, conf 0.73`
-- Catch reports provide ground truth labels for echogram features at specific depths
-- Bayesian accumulation: each catch report at depth X increases confidence for blobs at that depth
-- Old captures re-analyzed when vocabulary improves (schema_version increments)
-- The archive compounds in value over time
+**vocabulary.py** — aggregated catch labels with Bayesian confidence scoring.
+
+- Aggregates all catch report labels from all captures into a single vocabulary
+- Laplace-smoothed P(species | depth_zone) with confidence tiers:
+  unidentified (P<0.1) → possible (0.1-0.4) → likely (0.4-0.7) → species (P>0.7)
+- `vocabulary.lookup(depth)` returns predictions; `vocabulary.annotate_blobs(blobs)` enriches blob dicts
+- Cached to `.vocabulary_cache.json` for fast startup
+
+**Integration:** analyzer.py detect_blobs() now calls vocabulary.annotate_blobs().
+273 of 443 mid-zone blobs carry chum predictions at P=0.95.
+Caption includes "Vocabulary predicts: chum."
+
+**Retroactive re-analysis:** `--retroactive` flag scans ALL captures with current vocabulary.
+Ran on 25 captures — all historical mid-zone blobs now labeled.
+
+**The compounding loop:**
+  Catch report → vocabulary label → analyzer prediction → enriched Ship Log entry
+  Old captures re-analyzed → more labeled blobs → better vocabulary → repeat
+
+**Usage:**
+  `python vocabulary.py lookup 35`  — predict species at 35 fm
+  `python vocabulary.py summarize`  — show aggregated vocabulary
+  `python analyzer.py --retroactive` — re-analyze all captures
 
 ### Phase 6: Deferred
 
