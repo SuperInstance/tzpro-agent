@@ -31,6 +31,9 @@ import numpy as np
 # Phase 5: Vocabulary integration
 from vocabulary import annotate_blobs, aggregate_vocabulary
 
+# Phase 8: School behavior classification
+from school_state import classify_school
+
 # ── Config ─────────────────────────────────────────────────────────
 CAPTURES_DIR = Path(__file__).parent.resolve() / "captures" / "v3"
 SHIP_LOG_URL = "https://ship-log-search.casey-digennaro.workers.dev/api/log"
@@ -230,6 +233,121 @@ def detect_blobs(band: np.ndarray) -> list[dict]:
         pass  # vocabulary lookup is additive, never blocking
 
     return blobs
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  Multi-Frame Blob Tracking
+# ══════════════════════════════════════════════════════════════════════
+
+DEPTH_MATCH_THRESHOLD_FM = 2.0  # max depth difference to consider same blob
+
+
+def track_blobs(current: list[dict], previous: list[dict]) -> dict:
+    """Match blobs between consecutive frames by depth proximity.
+
+    Uses a greedy nearest-neighbor match on centroid_depth_fm.
+    Returns delta metrics: blob_count_delta, migrating counts,
+    new_blobs, lost_blobs.
+
+    Args:
+        current: list of blob dicts from the current frame (must have
+                 centroid_depth_fm)
+        previous: list of blob dicts from the previous frame
+
+    Returns:
+        blob_count_delta: int (current - previous)
+        migrating_up: int — blobs that moved shallower by > DEPTH_MATCH_THRESHOLD_FM
+        migrating_down: int — blobs that moved deeper
+        new_blobs: int — blobs in current with no close match in previous
+        lost_blobs: int — blobs in previous with no close match in current
+        matched_pairs: int — number of blob pairs matched
+        mean_depth_shift_fm: float — average depth change of matched pairs
+    """
+    if not current and not previous:
+        return {
+            "blob_count_delta": 0,
+            "migrating_up": 0,
+            "migrating_down": 0,
+            "new_blobs": 0,
+            "lost_blobs": 0,
+            "matched_pairs": 0,
+            "mean_depth_shift_fm": 0.0,
+        }
+
+    # Extract depths
+    curr_depths = [b["centroid_depth_fm"] for b in current]
+    prev_depths = [b["centroid_depth_fm"] for b in previous]
+
+    blob_count_delta = len(curr_depths) - len(prev_depths)
+
+    if not previous:
+        return {
+            "blob_count_delta": blob_count_delta,
+            "migrating_up": 0,
+            "migrating_down": 0,
+            "new_blobs": len(curr_depths),
+            "lost_blobs": 0,
+            "matched_pairs": 0,
+            "mean_depth_shift_fm": 0.0,
+        }
+
+    if not current:
+        return {
+            "blob_count_delta": blob_count_delta,
+            "migrating_up": 0,
+            "migrating_down": 0,
+            "new_blobs": 0,
+            "lost_blobs": len(prev_depths),
+            "matched_pairs": 0,
+            "mean_depth_shift_fm": 0.0,
+        }
+
+    # Greedy nearest-neighbor matching
+    # We'll match each current blob to its closest previous blob (by depth)
+    # that hasn't been matched yet and is within threshold
+    prev_available = set(range(len(prev_depths)))
+    curr_available = set(range(len(curr_depths)))
+
+    matched_pairs = []
+    # Sort current blobs by depth so matching is deterministic
+    curr_sorted = sorted(enumerate(curr_depths), key=lambda x: x[1])
+
+    for ci, cd in curr_sorted:
+        best_prev = None
+        best_dist = float("inf")
+        for pi in prev_available:
+            dist = abs(cd - prev_depths[pi])
+            if dist < best_dist:
+                best_dist = dist
+                best_prev = pi
+
+        if best_prev is not None and best_dist <= DEPTH_MATCH_THRESHOLD_FM:
+            matched_pairs.append((ci, best_prev, best_dist, cd - prev_depths[best_prev]))
+            prev_available.discard(best_prev)
+            curr_available.discard(ci)
+
+    # Analyze matched pairs for migration
+    migrating_up = 0
+    migrating_down = 0
+    depth_shifts = []
+    for _ci, _pi, _dist, shift in matched_pairs:
+        depth_shifts.append(shift)
+        if shift < -DEPTH_MATCH_THRESHOLD_FM:
+            migrating_up += 1  # moved shallower (smaller fm)
+        elif shift > DEPTH_MATCH_THRESHOLD_FM:
+            migrating_down += 1  # moved deeper
+
+    mean_shift = sum(depth_shifts) / len(depth_shifts) if depth_shifts else 0.0
+
+    return {
+        "blob_count_delta": blob_count_delta,
+        "migrating_up": migrating_up,
+        "migrating_down": migrating_down,
+        "new_blobs": len(curr_available),
+        "lost_blobs": len(prev_available),
+        "matched_pairs": len(matched_pairs),
+        "mean_depth_shift_fm": round(mean_shift, 2),
+    }
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -661,12 +779,19 @@ def analyze_single(band: np.ndarray, band_name: str = "") -> dict:
 def generate_caption(
     lf: dict, hf: dict,
     recent_context: list[dict] | None = None,
+    track_result: dict | None = None,
+    school_state: dict | None = None,
 ) -> str:
-    """Generate a 2-3 sentence natural-language summary of both bands.
+    """Generate a 2-4 sentence natural-language summary of both bands.
 
     If recent_context is provided (list of prior analysis snapshots),
     the caption gains temporal perspective — boat proximity trends,
     school building/declining, etc.
+
+    If track_result is provided (from track_blobs), includes multi-frame
+    blob tracking insights (migration direction, new/lost blobs).
+
+    If school_state is provided, includes behavioral classification.
     """
     parts: list[str] = []
 
@@ -796,6 +921,81 @@ def generate_caption(
             )
         elif not all_empty:
             parts.append("No other boats detected — alone on the grounds.")
+
+    # ── Blob tracking (multi-frame) ──
+    try:
+        if track_result and track_result.get("matched_pairs", 0) > 0:
+            tr = track_result
+            track_parts = []
+            if tr.get("migrating_up", 0) > 0:
+                track_parts.append(f"{tr['migrating_up']} migrating shallower")
+            if tr.get("migrating_down", 0) > 0:
+                track_parts.append(f"{tr['migrating_down']} diving deeper")
+            if track_parts:
+                parts.append(f"Blob tracking: {', '.join(track_parts)}. ")
+            if tr.get("new_blobs", 0) > 0:
+                parts.append(f"{tr['new_blobs']} new echo returns appeared.")
+            if tr.get("lost_blobs", 0) > 0:
+                parts.append(f"{tr['lost_blobs']} echo returns disappeared.")
+    except Exception:
+        pass  # tracking is additive, never blocking
+
+    # ── School state (from school_state module) ──
+    try:
+        if school_state:
+            state = school_state.get("state", "unknown")
+            conf = school_state.get("confidence", 0)
+            if conf >= 0.3:
+                state_labels = {
+                    "building": "📈 School is building",
+                    "dispersing": "📉 School may be dispersing",
+                    "holding": "🏠 School appears to be holding",
+                    "migrating": "🐟 School appears to be migrating",
+                    "absent": "❌ No significant school detected",
+                }
+                label = state_labels.get(state, f"School state: {state}")
+                evidence_items = school_state.get("evidence", [])
+                parts.append(
+                    f"{label} (confidence {conf:.0%})"
+                    + (f": {evidence_items[0]}" if evidence_items else "") + "."
+                )
+    except Exception:
+        pass  # school_state is additive, never blocking
+
+    # ── Signal fusion state (if available) ──
+    try:
+        from signal_fusion import FusionEngine
+        engine = FusionEngine.load_or_new()
+        bf = engine.belief_state()
+        entropy = engine.entropy()
+        if entropy < 2.0:
+            # Map belief keys to readable labels
+            readable = []
+            for k, v in sorted(bf.items(), key=lambda x: abs(x[1]), reverse=True):
+                if abs(v) > 0.3:
+                    label_k = k.replace("_", " ").capitalize()
+                    readable.append(f"{label_k}: {v:+.2f}")
+            if readable:
+                parts.append(
+                    f"Fusion state (entropy {entropy:.2f}): "
+                    + ", ".join(readable[:4]) + "."
+                )
+    except Exception:
+        pass  # signal_fusion is additive, never blocking
+
+    # ── Anomaly status (from temporal_mining) ──
+    try:
+        from temporal_mining import scan_anomalies
+        anomalies = scan_anomalies(n_frames=5)
+        if anomalies:
+            recent_anoms = [a for a in anomalies if a.get("is_anomaly")]
+            if recent_anoms:
+                parts.append(
+                    f"⚠ {len(recent_anoms)} recent anomalous frame(s) detected "
+                    f"(z > 2.5)."
+                )
+    except Exception:
+        pass  # temporal_mining is additive, never blocking
 
     return " ".join(parts)
 
@@ -1054,6 +1254,35 @@ def find_unanalyzed_captures() -> list[tuple[Path, Path, Path, dict]]:
     return results
 
 
+def _read_previous_blobs(json_path: Path) -> list[dict]:
+    """Read LF blobs from the chronologically previous capture's JSON.
+
+    Scans day-dir JSONs sorted by name, finds the one immediately before
+    the current json_path, and returns its LF blobs list.
+    """
+    day_dir = json_path.parent
+    if not day_dir.is_dir():
+        return []
+
+    jsons = sorted(day_dir.glob("*.json"))
+    try:
+        idx = jsons.index(json_path)
+    except ValueError:
+        return []
+
+    if idx == 0:
+        return []  # no previous frame
+
+    prev_json = jsons[idx - 1]
+    try:
+        data = json.loads(prev_json.read_text(encoding="utf-8"))
+        analysis = data.get("analysis", {})
+        heuristic = analysis.get("heuristic", {})
+        return heuristic.get("lf", {}).get("blobs", [])
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
 def process_capture(
     png_path: Path, json_path: Path, md_path: Path, meta: dict,
 ) -> bool:
@@ -1076,7 +1305,32 @@ def process_capture(
 
         # Load temporal context for perspective-aware descriptions
         recent_context = load_recent_context(json_path, n_frames=5)
-        caption = generate_caption(analysis_lf, analysis_hf, recent_context)
+
+        # Multi-frame blob tracking: compare current LF blobs with previous frame
+        prev_blobs = _read_previous_blobs(json_path)
+        track_result = track_blobs(analysis_lf["blobs"], prev_blobs)
+        analysis["lf"]["tracking"] = track_result
+
+        # Phase 8: Classify school behavior from recent captures
+        school_state = None
+        try:
+            school_history = _build_school_history(json_path, n_frames=5)
+            if school_history:
+                school_state = classify_school(school_history)
+                analysis["school_state"] = school_state
+                log.info(
+                    "School: %s (conf=%.2f)",
+                    school_state["state"],
+                    school_state["confidence"],
+                )
+        except Exception as e:
+            log.debug("School classification skipped: %s", e)
+
+        caption = generate_caption(
+            analysis_lf, analysis_hf, recent_context,
+            track_result=track_result,
+            school_state=school_state,
+        )
 
         # Phase 9: Signal fusion
         try:
