@@ -422,5 +422,13 @@
   "VOCABULARY_MATCH_e2bc5e0f": {
     "triggered_at": "2026-07-18T16:50:56.720832+00:00",
     "acknowledged": false
+  },
+  "VOCABULARY_MATCH_0abed2a4": {
+    "triggered_at": "2026-07-18T17:01:01.185707+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_68e4ec06": {
+    "triggered_at": "2026-07-18T17:11:05.104112+00:00",
+    "acknowledged": false
   }
 }

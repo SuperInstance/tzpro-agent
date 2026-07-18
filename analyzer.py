@@ -63,7 +63,7 @@ ZONES: dict[str, tuple[int, int]] = {
 BLOB_MIN_SIZE_PX = 50
 INTENSITY_THRESHOLD = 50  # grayscale threshold for signal vs background
 
-ANALYZED_SCHEMA_VERSION = 2
+ANALYZED_SCHEMA_VERSION = 3
 
 LOCAL_TZ = timezone(timedelta(hours=-8))
 
@@ -464,6 +464,104 @@ def detect_vertical_lines(
 
 
 # ══════════════════════════════════════════════════════════════════════
+#  Haze Detection (plankton / feed scatterers on HF band)
+# ══════════════════════════════════════════════════════════════════════
+
+def detect_haze(band: np.ndarray) -> dict:
+    """Detect fine-scale scatterers (plankton/feed) in surface zone.
+
+    Uses connected-components on the surface zone (rows 0-90, 0-5 fm)
+    with a low area cutoff (< 15 px²) to catch tiny particles — these
+    are "haze" from plankton or baitfish, not discrete fish returns.
+    No morphological opening: haze IS the speckle we want to count.
+
+    Returns:
+        haze_blob_count: number of small blobs in surface zone
+        mean_haze_area: average area of those blobs (px²)
+        feed_present: True when count > 20 AND mean_area < 15 px²
+        feed_intensity: "none" | "low" | "medium" | "high"
+    """
+    gray = cv2.cvtColor(band, cv2.COLOR_BGR2GRAY)
+    surf_y_start, surf_y_end = ZONES["surface"]  # (0, 90)
+    surface = gray[surf_y_start:surf_y_end, :]
+
+    if surface.size == 0:
+        return {
+            "haze_blob_count": 0,
+            "mean_haze_area": 0.0,
+            "feed_present": False,
+            "feed_intensity": "none",
+        }
+
+    above_bg = surface[surface > 5]
+    if above_bg.size == 0:
+        return {
+            "haze_blob_count": 0,
+            "mean_haze_area": 0.0,
+            "feed_present": False,
+            "feed_intensity": "none",
+        }
+
+    thresh_val = max(INTENSITY_THRESHOLD, int(np.percentile(above_bg, 50)))
+    _, binary = cv2.threshold(surface, thresh_val, 255, cv2.THRESH_BINARY)
+
+    # No morphological open — the speckle IS the signal we want
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
+        binary, connectivity=8,
+    )
+
+    haze_blobs: list[dict] = []
+    for i in range(1, num_labels):
+        area = int(stats[i, cv2.CC_STAT_AREA])
+        # Only SMALL blobs (< 15 px²) — these are haze particles
+        if area >= 15:
+            continue
+
+        x = int(stats[i, cv2.CC_STAT_LEFT])
+        y = int(stats[i, cv2.CC_STAT_TOP])
+        bw = int(stats[i, cv2.CC_STAT_WIDTH])
+        bh = int(stats[i, cv2.CC_STAT_HEIGHT])
+        cx, cy = centroids[i]
+
+        mask = (labels == i).astype(np.uint8)
+        mean_int = float(cv2.mean(surface, mask=mask)[0])
+
+        haze_blobs.append({
+            "centroid_x_px": int(round(cx)),
+            "centroid_y_px": int(round(cy)),
+            "centroid_depth_fm": round((surf_y_start + cy) / PX_PER_FM, 1),
+            "width_px": bw,
+            "height_px": bh,
+            "area_px": area,
+            "mean_intensity": round(mean_int, 1),
+        })
+
+    haze_count = len(haze_blobs)
+    mean_area = (
+        float(np.mean([b["area_px"] for b in haze_blobs]))
+        if haze_blobs else 0.0
+    )
+
+    feed_present = haze_count > 20 and mean_area < 15
+
+    if haze_count > 100:
+        intensity = "high"
+    elif haze_count > 50:
+        intensity = "medium"
+    elif haze_count > 20:
+        intensity = "low"
+    else:
+        intensity = "none"
+
+    return {
+        "haze_blob_count": haze_count,
+        "mean_haze_area": round(mean_area, 1),
+        "feed_present": feed_present,
+        "feed_intensity": intensity,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════
 #  Temporal Context — read recent analyses for perspective
 # ══════════════════════════════════════════════════════════════════════
 
@@ -522,8 +620,12 @@ def load_recent_context(
 #  Per-band orchestrator
 # ══════════════════════════════════════════════════════════════════════
 
-def analyze_single(band: np.ndarray) -> dict:
-    """Run all analyses on one BGR band. Returns structured result dict."""
+def analyze_single(band: np.ndarray, band_name: str = "") -> dict:
+    """Run all analyses on one BGR band. Returns structured result dict.
+
+    When band_name is "HF", also runs haze (plankton) detection in
+    the surface zone — plankton scatter shows on high-frequency.
+    """
     # Depth zone profiles
     zone_profiles: dict[str, dict] = {}
     for zname, (y0, y1) in ZONES.items():
@@ -534,7 +636,7 @@ def analyze_single(band: np.ndarray) -> dict:
     bottom = detect_bottom(band)
     boats = detect_vertical_lines(band)
 
-    return {
+    result: dict = {
         "zone_profiles": zone_profiles,
         "column_delta": column_delta(band),
         "blobs": blobs,
@@ -544,6 +646,12 @@ def analyze_single(band: np.ndarray) -> dict:
         "bottom": bottom,
         "boat_proximity": boats,
     }
+
+    # Haze detection only for HF band (plankton shows on high frequency)
+    if band_name.upper() == "HF":
+        result["haze"] = detect_haze(band)
+
+    return result
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -635,6 +743,15 @@ def generate_caption(
         f"Mid-water column (20-40 fm) mean intensity "
         f"{mid_mean:.1f}/255, peak {mid_peak}/255."
     )
+
+    # ── Haze (plankton / feed scatterers, HF band surface zone) ──
+    haze = hf.get("haze")
+    if haze and haze.get("feed_present"):
+        intensity = haze.get("feed_intensity", "low")
+        parts.append(
+            f"HF shallow zone shows {intensity} scatterer activity — "
+            f"likely plankton/feed in the upper water column."
+        )
 
     # ── Boat proximity from sounder interference ──
     boats = lf.get("boat_proximity", {})
@@ -850,6 +967,18 @@ def update_markdown(md_path: Path, analysis: dict, caption: str) -> bool:
             lines.append(f"- **Nearby vessels:** {n_boats} vertical line(s) ({sev} interference)")
             lines.append("")
 
+        # Haze (plankton/feed on HF)
+        haze = hf.get("haze")
+        if haze and haze.get("feed_present"):
+            intensity = haze.get("feed_intensity", "low")
+            count = haze.get("haze_blob_count", 0)
+            area = haze.get("mean_haze_area", 0)
+            lines.append(
+                f"- **Plankton/feed (HF surface):** {count} haze particles "
+                f"(avg {area:.1f} px²) — {intensity} activity"
+            )
+            lines.append("")
+
         # Blobs
         blobs_lf = lf.get("blobs", [])
         lines.append(f"- **Echo returns (LF):** {len(blobs_lf)} blob(s) detected")
@@ -940,8 +1069,8 @@ def process_capture(
             img = cv2.resize(img, (1920, 1080))
 
         lf_band, hf_band = crop_bands(img)
-        analysis_lf = analyze_single(lf_band)
-        analysis_hf = analyze_single(hf_band)
+        analysis_lf = analyze_single(lf_band, band_name="LF")
+        analysis_hf = analyze_single(hf_band, band_name="HF")
 
         analysis = {"lf": analysis_lf, "hf": analysis_hf}
 
