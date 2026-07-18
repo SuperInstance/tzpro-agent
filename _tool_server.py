@@ -1,101 +1,142 @@
 #!/usr/bin/env python3
 """
-_tool_server.py — Persistent Python shell that survives MCP transport issues.
-Run once, then send commands to it via a simple FIFO file.
+_tool_server.py — File-based tool execution for MCP transport safety.
+
+The problem: DesktopCommander MCP connection gets corrupted by large output
+(ANSI escapes, image data, OpenCV windows). By writing results to a file and
+only returning the file path, the MCP transport never sees the large output.
 
 Usage:
-  python _tool_server.py              # Start server (listens on stdin)
-  python _tool_server.py exec "cmd"   # One-shot exec with output to stdout
+  python _tool_server.py exec "dir"     → writes .tool_output.json, prints path
+  python _tool_server.py python "code"  → runs Python snippet
+  python _tool_server.py git "message"  → git add/commit/push
 
-This avoids the MCP transport corruption that happens when large output
-streams through the Telegram channel renderer.
+The agent reads .tool_output.json directly, avoiding MCP transport entirely.
 """
-import sys, os, json, subprocess, shlex, time
+import sys
+import os
+import subprocess
+import json
+import time
 from pathlib import Path
 
 HERE = Path(__file__).parent.resolve()
+OUT = HERE / ".tool_output.json"
+ENCODING = "utf-8"
 
-def run_command(cmd: str) -> dict:
-    """Run a shell command and return results."""
+
+def run(cmd: str, timeout: int = 120) -> dict:
+    """Run a shell command, capture output, return result dict."""
     try:
-        result = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, timeout=120,
-            cwd=str(HERE)
+        r = subprocess.run(
+            cmd, shell=True, capture_output=True, text=True,
+            timeout=timeout, cwd=str(HERE)
         )
         return {
-            "status": "ok",
-            "returncode": result.returncode,
-            "stdout": result.stdout[:50000],
-            "stderr": result.stderr[:50000],
+            "ok": True,
+            "rc": r.returncode,
+            "out": r.stdout[:100000],
+            "err": r.stderr[:10000],
+            "cmd": cmd,
+            "cwd": str(HERE),
         }
     except subprocess.TimeoutExpired:
-        return {"status": "timeout", "stdout": "", "stderr": "Command timed out"}
+        return {"ok": False, "error": "timeout", "cmd": cmd}
+    except FileNotFoundError:
+        return {"ok": False, "error": f"command not found: {cmd.split()[0]}", "cmd": cmd}
     except Exception as e:
-        return {"status": "error", "stdout": "", "stderr": str(e)}
+        return {"ok": False, "error": str(e), "cmd": cmd}
 
-def run_python(code: str) -> dict:
-    """Run a Python snippet and return results."""
+
+def run_python(code: str, timeout: int = 120) -> dict:
+    """Run a Python snippet, capture output, return result dict."""
     try:
-        result = subprocess.run(
+        r = subprocess.run(
             [sys.executable, "-c", code],
-            capture_output=True, text=True, timeout=120,
-            cwd=str(HERE)
+            capture_output=True, text=True,
+            timeout=timeout, cwd=str(HERE)
         )
         return {
-            "status": "ok",
-            "returncode": result.returncode,
-            "stdout": result.stdout[:50000],
-            "stderr": result.stderr[:50000],
+            "ok": True,
+            "rc": r.returncode,
+            "out": r.stdout[:100000],
+            "err": r.stderr[:10000],
+            "code": code,
+            "cwd": str(HERE),
         }
     except subprocess.TimeoutExpired:
-        return {"status": "timeout", "stdout": "", "stderr": "Command timed out"}
+        return {"ok": False, "error": "timeout"}
     except Exception as e:
-        return {"status": "error", "stdout": "", "stderr": str(e)}
+        return {"ok": False, "error": str(e)}
 
-def git_pull_push(message: str = "auto-update"):
-    """Git add/commit/push."""
-    try:
-        subprocess.run(["git", "add", "-A"], cwd=str(HERE), capture_output=True, timeout=10)
-        subprocess.run(["git", "commit", "-m", message], cwd=str(HERE), capture_output=True, timeout=10)
-        push = subprocess.run(["git", "push"], cwd=str(HERE), capture_output=True, text=True, timeout=30)
-        return {"status": "ok", "output": push.stdout[:2000] + push.stderr[:2000]}
-    except Exception as e:
-        return {"status": "error", "output": str(e)}
+
+def git_push(message: str = "auto") -> dict:
+    """Git add all, commit, push."""
+    cmds = [
+        ["git", "add", "-A"],
+        ["git", "commit", "-m", message],
+        ["git", "push"],
+    ]
+    results = []
+    for cmd in cmds:
+        try:
+            r = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=30, cwd=str(HERE)
+            )
+            results.append(f"[{'OK' if r.returncode == 0 else 'ERR'}] {' '.join(cmd)}")
+            stdout = r.stdout.strip()
+            stderr = r.stderr.strip()
+            if stdout:
+                results.append(f"  stdout: {stdout[:2000]}")
+            if stderr:
+                results.append(f"  stderr: {stderr[:2000]}")
+        except subprocess.TimeoutExpired:
+            results.append(f"[TIMEOUT] {' '.join(cmd)}")
+        except Exception as e:
+            results.append(f"[ERR] {' '.join(cmd)}: {e}")
+    return {"ok": True, "steps": results}
+
+
+def write_and_print(result: dict) -> None:
+    """Write result to .tool_output.json and print only the file path."""
+    OUT.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding=ENCODING)
+    # Only print the path — no large output through MCP transport
+    print(str(OUT))
+    # Also write a .last_command file for easy reference
+    cmd_file = HERE / ".last_command"
+    cmd_file.write_text(sys.argv[1] if len(sys.argv) > 1 else "none")
+
 
 if __name__ == "__main__":
-    if len(sys.argv) >= 2 and sys.argv[1] == "exec":
-        result = run_command(" ".join(sys.argv[2:]))
-        json.dump(result, sys.stdout, indent=2)
-    elif len(sys.argv) >= 2 and sys.argv[1] == "python":
+    if len(sys.argv) >= 3 and sys.argv[1] == "exec":
+        result = run(" ".join(sys.argv[2:]))
+        write_and_print(result)
+
+    elif len(sys.argv) >= 3 and sys.argv[1] == "python":
         result = run_python(" ".join(sys.argv[2:]))
-        json.dump(result, sys.stdout, indent=2)
+        write_and_print(result)
+
     elif len(sys.argv) >= 2 and sys.argv[1] == "git":
-        msg = " ".join(sys.argv[2:]) or "auto-update"
-        result = git_pull_push(msg)
-        json.dump(result, sys.stdout, indent=2)
-    else:
-        # Interactive mode: read commands from stdin
-        print("Tool server ready. Send JSON commands on stdin.", flush=True)
-        for line in sys.stdin:
-            line = line.strip()
-            if not line:
-                continue
-            if line == "exit":
-                break
+        msg = " ".join(sys.argv[2:]) or "auto"
+        result = git_push(msg)
+        write_and_print(result)
+
+    elif len(sys.argv) >= 2 and sys.argv[1] == "status":
+        stat = {}
+        stat["_tool_output_exists"] = OUT.exists()
+        if OUT.exists():
             try:
-                cmd = json.loads(line)
-                if cmd.get("type") == "exec":
-                    result = run_command(cmd["command"])
-                elif cmd.get("type") == "python":
-                    result = run_python(cmd["code"])
-                elif cmd.get("type") == "git":
-                    result = git_pull_push(cmd.get("message", "auto-update"))
-                else:
-                    result = {"status": "error", "stderr": f"Unknown command type: {cmd.get('type')}"}
-                json.dump(result, sys.stdout)
-                print()
-                sys.stdout.flush()
-            except json.JSONDecodeError:
-                json.dump({"status": "error", "stderr": "Invalid JSON"}, sys.stdout)
-                print()
-                sys.stdout.flush()
+                cached = json.loads(OUT.read_text(encoding=ENCODING))
+                stat["_last_result_keys"] = list(cached.keys())
+                stat["_last_result_ok"] = cached.get("ok")
+                stat["_last_result_rc"] = cached.get("rc")
+            except Exception:
+                stat["_last_result"] = "corrupt"
+        result = {"ok": True, "status": stat}
+        write_and_print(result)
+
+    else:
+        print("Usage: python _tool_server.py exec <cmd>")
+        print("       python _tool_server.py python <code>")
+        print("       python _tool_server.py git <message>")
+        print("       python _tool_server.py status")
