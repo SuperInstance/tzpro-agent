@@ -406,5 +406,13 @@
   "BOAT_PROXIMITY_5dca09a2": {
     "triggered_at": "2026-07-18T16:11:38.161394+00:00",
     "acknowledged": false
+  },
+  "VOCABULARY_MATCH_30011fc6": {
+    "triggered_at": "2026-07-18T16:20:46.266956+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_d9ef7491": {
+    "triggered_at": "2026-07-18T16:30:49.910104+00:00",
+    "acknowledged": false
   }
 }

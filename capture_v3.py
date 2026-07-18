@@ -217,7 +217,12 @@ def capture_frame() -> Optional[Path]:
             "analysis": {"schema_version": 1, "heuristic": None, "caption": None, "vocabulary": None},
             "edges": {"neighbors_time": [], "neighbors_space": []},
         }
-        saved.with_suffix(".json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+        # Atomic write: write to .tmp first, then rename — prevents readers
+# from seeing a half-written file if the process crashes mid-write.
+_json_path = saved.with_suffix(".json")
+_json_tmp = _json_path.with_suffix(".json.tmp")
+_json_tmp.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+_json_tmp.replace(_json_path)
 
         # Write markdown (human twin)
         md_lines = [
@@ -247,7 +252,11 @@ def capture_frame() -> Optional[Path]:
             "---",
             f"*capture_v3.py at {now.strftime('%H:%M:%S AKDT')}*",
         ]
-        saved.with_suffix(".md").write_text("\n".join(md_lines), encoding="utf-8")
+        # Atomic write for markdown
+_md_path = saved.with_suffix(".md")
+_md_tmp = _md_path.with_suffix(".md.tmp")
+_md_tmp.write_text("\n".join(md_lines), encoding="utf-8")
+_md_tmp.replace(_md_path)
 
         ship_log_ingest(saved, now, meta)
 

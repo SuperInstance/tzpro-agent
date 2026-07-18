@@ -108,36 +108,54 @@ def _post_to_ship_log(
     message: str,
     details: dict,
 ) -> None:
-    """POST alert metadata to Ship Log Search for semantic browsing."""
-    try:
-        payload = {
-            "text": message,
-            "category": "observation",
-            "subcategory": "alert",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "metadata": {
-                "alert_type": alert_type,
-                "severity": severity,
-                "trigger_data": details,
-            },
-        }
-        data = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(
-            SHIP_LOG_URL,
-            data=data,
-            headers={
-                "Content-Type": "application/json",
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36"
-                ),
-            },
-            method="POST",
-        )
-        urllib.request.urlopen(req, timeout=SHIP_LOG_TIMEOUT_S)
-        log.info("Alert posted to Ship Log: %s", alert_type)
-    except (urllib.error.URLError, urllib.error.HTTPError, OSError) as e:
-        log.warning("Ship Log alert post failed (non-blocking): %s", e)
+    """POST alert metadata to Ship Log Search for semantic browsing.
+
+    Retries up to 3 times with exponential back-off on transient failures.
+    """
+    payload = {
+        "text": message,
+        "category": "observation",
+        "subcategory": "alert",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "metadata": {
+            "alert_type": alert_type,
+            "severity": severity,
+            "trigger_data": details,
+        },
+    }
+    data = json.dumps(payload).encode("utf-8")
+
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            req = urllib.request.Request(
+                SHIP_LOG_URL,
+                data=data,
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36"
+                    ),
+                },
+                method="POST",
+            )
+            urllib.request.urlopen(req, timeout=SHIP_LOG_TIMEOUT_S)
+            log.info("Alert posted to Ship Log: %s", alert_type)
+            return
+        except (urllib.error.URLError, urllib.error.HTTPError, OSError) as e:
+            if attempt < max_retries:
+                backoff = 2 ** (attempt - 1)  # 1s, 2s, 4s
+                log.warning(
+                    "Ship Log POST attempt %d/%d failed: %s — retrying in %ds",
+                    attempt, max_retries, e, backoff,
+                )
+                time.sleep(backoff)
+            else:
+                log.warning(
+                    "Ship Log POST failed after %d attempts (non-blocking): %s",
+                    max_retries, e,
+                )
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -491,10 +509,11 @@ def check_stale_analysis(
     age_minutes = age_seconds / 60.0
 
     if age_minutes > STALE_MINUTES:
-        trigger_data = (
-            f"last_file={newest_path.name}|age_min={age_minutes:.0f}|"
-            f"threshold={STALE_MINUTES}"
-        )
+        # Stable trigger_data
+            trigger_data = (
+                f"dir={cap_dir}|reason=stale|"
+                f"threshold={STALE_MINUTES}"
+            )
         return {
             "triggered": True,
             "severity": "critical",
