@@ -1,16 +1,41 @@
-Chum Hotspot Report — Generated 2026-07-17
+# Chum Hotspot Report — Generated 2026-07-17 18:09 AKDT
 
-Total chum-predicted blobs (P>=0.7): 6398
-Unique grid cells (0.01 deg ~1km): 9
-
-To regenerate: python C:\Users\casey\.openclaw\workspace\tzpro-agent\_chum_hotspots.py
-
-Expected top clusters based on known track:
-#1 ~ 5546.846N  13141.424W — 1952 blobs, 7 captures, avg depth 29.7 fm
-#2 ~ 5547.011N  13140.889W — 1227 blobs, 4 captures, avg depth 30.5 fm
-#3 ~ 5547.404N  13140.748W —  591 blobs, 3 captures, avg depth 32.4 fm
-#4 ~ 5547.226N  13141.901W —  565 blobs, 2 captures, avg depth 31.3 fm
-#5 ~ 5547.408N  13139.804W —  486 blobs, 2 captures, avg depth 30.6 fm
-
-Track range: 55.7808 to 55.7901N, -131.6904 to -131.6634W
+Total chum-predicted blobs (confidence >= 0.7): 7,047
+Unique grid cells (~1km resolution): 9
+Total captures analyzed: 42 (49 JSON files, 42 with valid analysis)
+Track range: 55.7795N to 55.7923N • 131.7058W to 131.6602W
 Bottom: 57.2 fm consistently
+
+## Top 5 Hotspots (DDMM.mmm)
+
+#1  55°46.847'N  131°41.422'W  — 2,125 blobs, 7 captures, 29.0 fm avg
+     ◉ Highest concentration on your line
+
+#2  55°47.011'N  131°40.890'W  — 1,362 blobs, 4 captures, 29.6 fm avg
+
+#3  55°47.412'N  131°40.752'W  —  678 blobs, 3 captures, 31.3 fm avg
+
+#4  55°47.224'N  131°41.904'W  —  653 blobs, 2 captures, 30.2 fm avg
+
+#5  55°47.407'N  131°39.806'W  —  538 blobs, 2 captures, 29.9 fm avg
+
+## All 9 Cells
+
+Rank | Position (DDMM.mmm)       | Blobs | Captures | Avg Depth | Avg Intensity
+-----|---------------------------|-------|----------|-----------|-------------
+  1  | 5546.847N / 13141.422W   | 2125  |     7    | 29.0 fm   | 96.9/255
+  2  | 5547.011N / 13140.890W   | 1362  |     4    | 29.6 fm   | 96.6/255
+  3  | 5547.412N / 13140.752W   |  678  |     3    | 31.3 fm   | 99.1/255
+  4  | 5547.224N / 13141.904W   |  653  |     2    | 30.2 fm   | 97.9/255
+  5  | 5547.407N / 13139.806W   |  538  |     2    | 29.9 fm   | 98.1/255
+  6  | 5546.825N / 13142.398W   |  479  |     2    | 27.8 fm   | 96.7/255
+  7  | 5546.679N / 13142.022W   |  433  |     2    | 28.2 fm   | 97.2/255
+  8  | 5547.460N / 13141.414W   |  400  |     1    | 30.6 fm   | 98.4/255
+  9  | 5547.318N / 13140.243W   |  379  |     2    | 27.8 fm   | 106.6/255
+
+## Notes
+- All chum predictions at Bayesian confidence >= 0.7 (vocabulary from 1 catch label: chum@35fm, 15 fish)
+- Depth range: 27.8 to 31.3 fm (consistent mid-water column, 20-40 fm zone)
+- Intensity range: 96.6 to 106.6/255 (cell #9 highest at 106.6)
+- Your catch label "chum at 35 fm, 15 fish" maps to the 12:40 capture at 55°46.864'N / 131°41.209'W
+- Hotspot #1 (2125 blobs) is within 0.2 nm of that catch — the fish were stacked

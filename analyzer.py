@@ -723,6 +723,18 @@ def process_capture(
         update_ship_log(meta, analysis, caption)
 
         log.info("Analyzed OK: %s — %s", png_path.name, caption[:80])
+
+        # Phase 6: Check real-time alerts after analysis
+        try:
+            from alerts import check_alerts
+            alerts = check_alerts()
+            for alert in alerts:
+                log.warning("ALERT [%s]: %s", alert.get("severity", "info"), alert.get("message", ""))
+        except ImportError:
+            pass  # alerts.py not built yet
+        except Exception as alert_err:
+            log.debug("Alert check skipped: %s", alert_err)
+
         return True
 
     except Exception as e:

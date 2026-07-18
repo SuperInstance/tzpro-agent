@@ -50,7 +50,7 @@ MONOLOGUE_DIR.mkdir(parents=True, exist_ok=True)
 CONTEXT_FILE = MONOLOGUE_DIR / "context.json"
 
 # ── Ollama Config ──────────────────────────────────────────────────
-OLLAMA_CHAT_URL = "http://127.0.0.1:11434/api/chat"
+OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
 MONOLOGUE_MODEL = "qwen3:4b"  # always-on, CPU-friendly
 DEEP_MODEL = "qwen3:8b"       # swapped in when GPU is available
 
@@ -103,60 +103,59 @@ class MonologueEntry:
 
 
 def _ollama_generate(prompt: str, model: str = MONOLOGUE_MODEL) -> str:
-    """Send a prompt to Ollama via the chat API and return the response text.
+    """Send a prompt to Ollama and return the response text.
 
-    Uses the chat API with a system message that instructs the model to
-    respond concisely without thinking/reasoning. Retries once on transient
-    errors (timeouts, connection resets, empty responses).
-
-    If the model produces a thinking block but no response text, falls back
-    to the last substantive line from the thinking content.
+    Uses the generate API with raw=True to bypass the model's thinking
+    template (qwen3 defaults to thinking mode in the chat template).
+    Response is trimmed to the first meaningful sentence. Retries once
+    on transient errors.
     """
     payload = json.dumps({
         "model": model,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are a concise nautical observer aboard F/V EILEEN. "
-                    "Respond immediately with ONE short sentence. "
-                    "No reasoning or thinking aloud."
-                ),
-            },
-            {"role": "user", "content": prompt},
-        ],
+        "prompt": prompt,
+        "raw": True,
         "stream": False,
         "options": {
             "temperature": 0.5,
-            "max_tokens": 200,
-            "num_predict": 200,
+            "num_predict": 100,
         },
     }).encode()
 
     for attempt in (1, 2):
         try:
             req = urllib.request.Request(
-                OLLAMA_CHAT_URL,
+                OLLAMA_URL,
                 data=payload,
                 headers={"Content-Type": "application/json"},
             )
             with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT) as resp:
                 result = json.loads(resp.read().decode())
-                msg = result.get("message", {})
-                response = msg.get("content", "").strip()
+                response = result.get("response", "").strip()
 
                 if response:
-                    return response
-
-                # Fallback: extract last substantive line from thinking block
-                thinking = msg.get("thinking", "").strip()
-                if thinking:
-                    lines = [l.strip() for l in thinking.split("\n") if l.strip()]
-                    if lines:
-                        last = lines[-1]
-                        if len(last) > 15:
-                            log.debug("Fallback from thinking: %s", last[:60])
-                            return last[:100]
+                    # Strip special tokens
+                    response = (
+                        response.replace("<|im_start|>", "")
+                        .replace("<|im_end|>", "")
+                        .replace("<think>", "")
+                        .replace("</think>", "")
+                        .strip()
+                    )
+                    # Remove leading/trailing quotes and whitespace the model sometimes echoes
+                    response = response.strip().strip('\" \'\n\t')
+                    # If the model starts meta-commentary (double newline after response),
+                    # take only up to that point.
+                    if "\n\n" in response:
+                        response = response.split("\n\n")[0]
+                    # Ensure we end with sentence-ending punctuation
+                    if response and response[-1] not in (".", "!", "?"):
+                        # Find a good sentence break
+                        for delim in (". ", "! ", "? "):
+                            idx = response.find(delim)
+                            if idx > 0:
+                                response = response[: idx + 1]
+                                break
+                    return response.strip()
 
                 if attempt == 1:
                     log.debug("Ollama returned empty response, retrying...")
