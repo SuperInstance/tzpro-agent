@@ -414,5 +414,13 @@
   "VOCABULARY_MATCH_d9ef7491": {
     "triggered_at": "2026-07-18T16:30:49.910104+00:00",
     "acknowledged": false
+  },
+  "VOCABULARY_MATCH_53a0c989": {
+    "triggered_at": "2026-07-18T16:40:53.286016+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_e2bc5e0f": {
+    "triggered_at": "2026-07-18T16:50:56.720832+00:00",
+    "acknowledged": false
   }
 }
