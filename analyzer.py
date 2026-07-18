@@ -358,6 +358,167 @@ def detect_bottom(band: np.ndarray) -> Optional[dict]:
 
 
 # ══════════════════════════════════════════════════════════════════════
+#  Boat Proximity (Sounder Interference) Detection
+# ══════════════════════════════════════════════════════════════════════
+
+def detect_vertical_lines(
+    band: np.ndarray,
+    min_intensity: float = 50.0,
+    min_vertical_span_ratio: float = 0.3,
+    column_width_px: int = 3,
+) -> dict:
+    """Detect vertical line artifacts from nearby sounder transducers.
+
+    Other boats' transducers create bright vertical columns that span
+    multiple depth zones. Unlike fish blobs (localized clusters) or
+    bottom returns (bright horizontal), these are narrow vertical streaks.
+
+    Detection: computes mean intensity per column, finds columns where
+    mean exceeds threshold, then clusters adjacent hot columns into
+    "lines" and evaluates vertical span.
+
+    Returns:
+        vertical_line_count: total distinct vertical lines found
+        lines_per_zone: {zone_name: count} distribution
+        severity: "none" | "few" | "several" | "many" | "dense"
+        max_vertical_span_fm: tallest line in fathoms
+    """
+    gray = cv2.cvtColor(band, cv2.COLOR_BGR2GRAY)
+    h, w = gray.shape
+
+    # Per-column mean intensity
+    col_means = gray.mean(axis=0)  # shape (w,)
+
+    # Find hot columns above threshold
+    hot = col_means > min_intensity
+
+    # Cluster adjacent hot columns
+    diffs = np.diff(hot.astype(np.int8), prepend=0, append=0)
+    starts = np.where(diffs == 1)[0]
+    ends = np.where(diffs == -1)[0]
+
+    # Filter clusters by width (ignore very wide regions — those are schools/bottom)
+    lines: list[dict] = []
+    for s, e in zip(starts, ends):
+        width = e - s
+        if width > column_width_px and width < 20:  # 3-20px wide = transducer artifact
+            # Check vertical span: sample the column(s) intensity profile
+            mid_col = (s + e) // 2
+            vertical_profile = gray[:, mid_col - 1 : mid_col + 2].mean(axis=1)
+            above_thresh = (vertical_profile > min_intensity).sum()
+            vertical_span_ratio = above_thresh / h
+            if vertical_span_ratio >= min_vertical_span_ratio:
+                top_y = int(np.argmax(vertical_profile > min_intensity))
+                bot_y = h - int(np.argmax((vertical_profile > min_intensity)[::-1]))
+                lines.append({
+                    "x_start": int(s),
+                    "x_end": int(e),
+                    "width_px": width,
+                    "vertical_span_ratio": round(vertical_span_ratio, 2),
+                    "top_depth_fm": round(top_y / PX_PER_FM, 1),
+                    "bottom_depth_fm": round(bot_y / PX_PER_FM, 1),
+                    "span_fm": round((bot_y - top_y) / PX_PER_FM, 1),
+                    "mean_intensity": round(float(col_means[s:e].mean()), 1),
+                })
+
+    if not lines:
+        return {
+            "vertical_line_count": 0,
+            "lines_per_zone": {},
+            "severity": "none",
+            "max_vertical_span_fm": 0.0,
+            "lines": [],
+        }
+
+    # Classify severity by count
+    n = len(lines)
+    if n >= 25:
+        severity = "dense"
+    elif n >= 12:
+        severity = "many"
+    elif n >= 5:
+        severity = "several"
+    else:
+        severity = "few"
+
+    # Per-zone distribution
+    lines_per_zone: dict[str, int] = {z: 0 for z in ZONES}
+    for ln in lines:
+        mid_depth = (ln["top_depth_fm"] + ln["bottom_depth_fm"]) / 2.0
+        for zname, (y0, y1) in ZONES.items():
+            ztop = y0 / PX_PER_FM
+            zbot = y1 / PX_PER_FM
+            if ztop <= mid_depth <= zbot:
+                lines_per_zone[zname] = lines_per_zone.get(zname, 0) + 1
+                break
+
+    spans = [ln["span_fm"] for ln in lines]
+
+    return {
+        "vertical_line_count": n,
+        "lines_per_zone": lines_per_zone,
+        "severity": severity,
+        "max_vertical_span_fm": round(max(spans), 1),
+        "lines": sorted(lines, key=lambda x: x["mean_intensity"], reverse=True)[:20],
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  Temporal Context — read recent analyses for perspective
+# ══════════════════════════════════════════════════════════════════════
+
+def load_recent_context(
+    current_json_path: Path, n_frames: int = 5,
+) -> list[dict]:
+    """Read the previous N analysis JSONs from the same day folder.
+
+    Gives the analyzer temporal perspective: are boats approaching?
+    Is the school building? Has the bottom depth changed?
+
+    Returns list of dicts with:
+        capture_id, ts_local, vertical_line_count, boat_severity,
+        blob_count, thermocline_count, mid_zone_mean, bottom_depth_fm
+    """
+    day_dir = current_json_path.parent
+    if not day_dir.is_dir():
+        return []
+
+    jsons = sorted(day_dir.glob("*.json"), reverse=True)
+    # Exclude current file
+    jsons = [j for j in jsons if j.name != current_json_path.name]
+
+    recent: list[dict] = []
+    for js in jsons[:n_frames]:
+        try:
+            data = json.loads(js.read_text(encoding="utf-8"))
+            analysis = data.get("analysis", {})
+            heuristic = analysis.get("heuristic", {})
+            lf = heuristic.get("lf", {})
+
+            # Boat proximity was vertical lines in prior run
+            # On first run, this won't exist yet — that's fine
+            boats = lf.get("boat_proximity", {})
+
+            mid = lf.get("zone_profiles", {}).get("mid", {})
+            bottom = lf.get("bottom", {})
+
+            recent.append({
+                "capture_id": data.get("capture_id", js.stem),
+                "ts_local": data.get("ts_local", ""),
+                "vertical_line_count": boats.get("vertical_line_count", 0),
+                "boat_severity": boats.get("severity", "unknown"),
+                "blob_count": lf.get("blob_count", 0),
+                "thermocline_count": lf.get("thermocline_count", 0),
+                "mid_zone_mean": mid.get("mean_intensity", 0),
+                "bottom_depth_fm": bottom.get("bottom_depth_fm") if bottom else None,
+            })
+        except (json.JSONDecodeError, KeyError, OSError):
+            continue
+
+    return recent
+
+
+# ══════════════════════════════════════════════════════════════════════
 #  Per-band orchestrator
 # ══════════════════════════════════════════════════════════════════════
 
@@ -371,6 +532,7 @@ def analyze_single(band: np.ndarray) -> dict:
     blobs = detect_blobs(band)
     thermos = detect_thermoclines(band)
     bottom = detect_bottom(band)
+    boats = detect_vertical_lines(band)
 
     return {
         "zone_profiles": zone_profiles,
@@ -380,6 +542,7 @@ def analyze_single(band: np.ndarray) -> dict:
         "thermoclines": thermos,
         "thermocline_count": len(thermos),
         "bottom": bottom,
+        "boat_proximity": boats,
     }
 
 
@@ -387,8 +550,16 @@ def analyze_single(band: np.ndarray) -> dict:
 #  Caption Generation
 # ══════════════════════════════════════════════════════════════════════
 
-def generate_caption(lf: dict, hf: dict) -> str:
-    """Generate a 2-3 sentence natural-language summary of both bands."""
+def generate_caption(
+    lf: dict, hf: dict,
+    recent_context: list[dict] | None = None,
+) -> str:
+    """Generate a 2-3 sentence natural-language summary of both bands.
+
+    If recent_context is provided (list of prior analysis snapshots),
+    the caption gains temporal perspective — boat proximity trends,
+    school building/declining, etc.
+    """
     parts: list[str] = []
 
     # ── Bottom ──
@@ -465,6 +636,50 @@ def generate_caption(lf: dict, hf: dict) -> str:
         f"{mid_mean:.1f}/255, peak {mid_peak}/255."
     )
 
+    # ── Boat proximity from sounder interference ──
+    boats = lf.get("boat_proximity", {})
+    n_lines = boats.get("vertical_line_count", 0)
+    severity = boats.get("severity", "none")
+
+    if n_lines > 0:
+        if severity == "dense":
+            boat_str = f"Dense sounder interference detected — likely multiple boats very close."
+        elif severity == "many":
+            boat_str = f"Strong sounder interference ({n_lines} vertical lines) — other boats nearby."
+        elif severity == "several":
+            boat_str = f"{n_lines} vertical lines from other transducers — boats in the area."
+        else:
+            boat_str = f"{n_lines} vertical line{'s' if n_lines != 1 else ''} from nearby vessel."
+
+        # Trend analysis from temporal context
+        if recent_context:
+            prev_counts = [
+                r["vertical_line_count"] for r in recent_context
+                if r["vertical_line_count"] > 0
+            ]
+            if len(prev_counts) >= 2:
+                avg_prev = sum(prev_counts) / len(prev_counts)
+                if n_lines > avg_prev * 1.5:
+                    boat_str += f" Up from avg of {avg_prev:.0f} — boats getting closer."
+                elif n_lines < avg_prev * 0.5:
+                    boat_str += f" Down from avg of {avg_prev:.0f} — boats moving away."
+        parts.append(boat_str)
+    elif recent_context:
+        # No boats now — were there boats recently?
+        any_recent = any(
+            r["vertical_line_count"] > 0 for r in recent_context
+        )
+        all_empty = all(
+            r["vertical_line_count"] == 0 for r in recent_context
+        )
+        if any_recent and not all_empty:
+            parts.append(
+                "No sounder interference currently. Boats in recent frames are gone — "
+                "we may have our school back to ourselves."
+            )
+        elif not all_empty:
+            parts.append("No other boats detected — alone on the grounds.")
+
     return " ".join(parts)
 
 
@@ -483,6 +698,7 @@ def update_ship_log(meta: dict, analysis: dict, caption: str) -> None:
         bottom = lf.get("bottom")
         mid = lf.get("zone_profiles", {}).get("mid", {})
 
+        boats = lf.get("boat_proximity", {})
         payload = {
             "text": caption,
             "category": "observation",
@@ -502,6 +718,10 @@ def update_ship_log(meta: dict, analysis: dict, caption: str) -> None:
                 "blob_count": lf.get("blob_count", 0),
                 "mid_zone_mean_intensity": mid.get("mean_intensity"),
                 "mid_zone_peak_intensity": mid.get("peak_intensity"),
+                "boat_proximity": {
+                    "vertical_lines": boats.get("vertical_line_count", 0),
+                    "severity": boats.get("severity", "none"),
+                },
             },
         }
 
@@ -622,6 +842,14 @@ def update_markdown(md_path: Path, analysis: dict, caption: str) -> bool:
                     )
             lines.append("")
 
+        # Boat proximity
+        boats = lf.get("boat_proximity", {})
+        n_boats = boats.get("vertical_line_count", 0)
+        if n_boats > 0:
+            sev = boats.get("severity", "unknown")
+            lines.append(f"- **Nearby vessels:** {n_boats} vertical line(s) ({sev} interference)")
+            lines.append("")
+
         # Blobs
         blobs_lf = lf.get("blobs", [])
         lines.append(f"- **Echo returns (LF):** {len(blobs_lf)} blob(s) detected")
@@ -716,7 +944,10 @@ def process_capture(
         analysis_hf = analyze_single(hf_band)
 
         analysis = {"lf": analysis_lf, "hf": analysis_hf}
-        caption = generate_caption(analysis_lf, analysis_hf)
+
+        # Load temporal context for perspective-aware descriptions
+        recent_context = load_recent_context(json_path, n_frames=5)
+        caption = generate_caption(analysis_lf, analysis_hf, recent_context)
 
         write_analysis_json(json_path, meta, analysis, caption)
         update_markdown(md_path, analysis, caption)

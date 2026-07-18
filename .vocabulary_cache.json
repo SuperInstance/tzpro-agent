@@ -1,0 +1,32 @@
+{
+  "species_list": [
+    "chum"
+  ],
+  "species_map": {
+    "chum": {
+      "zones": {
+        "mid": {
+          "count": 15,
+          "reports": 1,
+          "depths": [
+            35
+          ]
+        }
+      },
+      "total_reports": 1,
+      "total_caught": 15
+    }
+  },
+  "zone_species": {
+    "mid": {
+      "total_reports": 1,
+      "chum": {
+        "reports": 1,
+        "count": 15
+      }
+    }
+  },
+  "timestamp": "2026-07-17T23:19:27.393824+00:00",
+  "total_labels": 1,
+  "captures_scanned": 1
+}

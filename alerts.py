@@ -518,6 +518,70 @@ def check_stale_analysis(
 
 
 # ══════════════════════════════════════════════════════════════════════
+#  Rule 5: BOAT_PROXIMITY (sounder interference)
+# ══════════════════════════════════════════════════════════════════════
+
+def check_boat_proximity() -> Optional[dict]:
+    """Check latest capture for sounder interference from nearby boats.
+
+    Thresholds:
+      few=1-4, several=5-11, many=12-24, dense=25+
+      Alerts fire at "several" (5+) for info, "many" (12+) for warning.
+    """
+    capture = _most_recent_capture()
+    if not capture:
+        return None
+
+    analysis = capture.get("analysis") or {}
+    heuristic = analysis.get("heuristic") or {}
+    lf = heuristic.get("lf") or {}
+    boats = lf.get("boat_proximity") or {}
+
+    n_lines = boats.get("vertical_line_count", 0)
+    severity = boats.get("severity", "none")
+
+    if n_lines < 5:
+        return None
+
+    pos = capture.get("position", {})
+    trigger_data = (
+        f"vertical_lines={n_lines}|severity={severity}|"
+        f"capture_id={capture.get('capture_id', '?')}"
+    )
+
+    # Classify alert level
+    if n_lines >= 12:
+        alert_severity = "warning"
+        message = (
+            f"Heavy sounder interference: {n_lines} vertical lines "
+            f"({severity}) — multiple boats very close, expect competition."
+        )
+    else:
+        alert_severity = "info"
+        message = (
+            f"Nearby vessel detected: {n_lines} vertical line"
+            f"{'s' if n_lines != 1 else ''} of sounder interference."
+        )
+
+    return {
+        "triggered": True,
+        "severity": alert_severity,
+        "message": message,
+        "details": {
+            "vertical_line_count": n_lines,
+            "severity": severity,
+            "lines_per_zone": boats.get("lines_per_zone", {}),
+            "max_span_fm": boats.get("max_vertical_span_fm"),
+            "capture_id": capture.get("capture_id"),
+            "capture_ts": capture.get("ts_utc"),
+            "position": pos,
+            "trigger_data": trigger_data,
+        },
+        "rule_name": "BOAT_PROXIMITY",
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════
 #  Orchestrator
 # ══════════════════════════════════════════════════════════════════════
 
@@ -560,6 +624,11 @@ def check_alerts(db_path: Optional[str] = None) -> list[dict]:
 
         # Rule 4
         alert = check_stale_analysis()
+        if alert:
+            raw.append(alert)
+
+        # Rule 5
+        alert = check_boat_proximity()
         if alert:
             raw.append(alert)
 

@@ -1,0 +1,410 @@
+{
+  "VOCABULARY_MATCH_8c2316fb": {
+    "triggered_at": "2026-07-18T14:13:00.162867+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_b6bec11a": {
+    "triggered_at": "2026-07-18T14:21:02.934285+00:00",
+    "acknowledged": false
+  },
+  "INTENSITY_SPIKE_5aa5f6ce": {
+    "triggered_at": "2026-07-18T14:21:02.934285+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_8040afe6": {
+    "triggered_at": "2026-07-18T14:31:07.655818+00:00",
+    "acknowledged": false
+  },
+  "INTENSITY_SPIKE_a69dbc94": {
+    "triggered_at": "2026-07-18T14:31:07.655818+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_4560f5ac": {
+    "triggered_at": "2026-07-18T14:40:11.050284+00:00",
+    "acknowledged": false
+  },
+  "INTENSITY_SPIKE_2fd1c82d": {
+    "triggered_at": "2026-07-18T14:40:11.050284+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_3fad9aff": {
+    "triggered_at": "2026-07-18T14:50:14.940618+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_2758e456": {
+    "triggered_at": "2026-07-18T15:00:19.663035+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_a1c454c8": {
+    "triggered_at": "2026-07-18T15:10:22.364759+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_300d7318": {
+    "triggered_at": "2026-07-18T15:20:25.064854+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_cbe30119": {
+    "triggered_at": "2026-07-18T15:30:28.652134+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_ad522b7c": {
+    "triggered_at": "2026-07-18T15:40:32.166397+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_c60c4ab1": {
+    "triggered_at": "2026-07-18T15:50:36.017901+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_844aabf3": {
+    "triggered_at": "2026-07-18T16:00:39.216867+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_48f74b18": {
+    "triggered_at": "2026-07-18T16:07:58.931746+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_ba90c1f8": {
+    "triggered_at": "2026-07-18T16:08:01.255270+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_af5d34ad": {
+    "triggered_at": "2026-07-18T16:08:03.294944+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_c2801c87": {
+    "triggered_at": "2026-07-18T16:08:48.624963+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_5afd1f38": {
+    "triggered_at": "2026-07-18T16:08:48.624963+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_03e67ea3": {
+    "triggered_at": "2026-07-18T16:08:51.030456+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_1a575846": {
+    "triggered_at": "2026-07-18T16:08:51.030456+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_772ff53b": {
+    "triggered_at": "2026-07-18T16:08:53.161269+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_7e3b3e52": {
+    "triggered_at": "2026-07-18T16:08:53.161269+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_932109f0": {
+    "triggered_at": "2026-07-18T16:08:55.188928+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_b0b38b1a": {
+    "triggered_at": "2026-07-18T16:08:55.188928+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_841f9637": {
+    "triggered_at": "2026-07-18T16:08:57.261459+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_860617fc": {
+    "triggered_at": "2026-07-18T16:08:59.402185+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_52c0e5a5": {
+    "triggered_at": "2026-07-18T16:09:06.743331+00:00",
+    "acknowledged": false
+  },
+  "BOTTOM_CHANGE_f3edd68d": {
+    "triggered_at": "2026-07-18T16:09:06.743331+00:00",
+    "acknowledged": false
+  },
+  "BOTTOM_CHANGE_4438e993": {
+    "triggered_at": "2026-07-18T16:09:08.323166+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_f508a7e2": {
+    "triggered_at": "2026-07-18T16:09:08.323166+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_6401f505": {
+    "triggered_at": "2026-07-18T16:09:09.143245+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_4553660d": {
+    "triggered_at": "2026-07-18T16:09:10.460442+00:00",
+    "acknowledged": false
+  },
+  "INTENSITY_SPIKE_ee274a9f": {
+    "triggered_at": "2026-07-18T16:09:13.510457+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_ef039e89": {
+    "triggered_at": "2026-07-18T16:09:13.510457+00:00",
+    "acknowledged": false
+  },
+  "INTENSITY_SPIKE_ba6686fb": {
+    "triggered_at": "2026-07-18T16:09:15.485283+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_a78bd781": {
+    "triggered_at": "2026-07-18T16:09:15.485283+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_d4b0d669": {
+    "triggered_at": "2026-07-18T16:09:20.110429+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_3f55c58b": {
+    "triggered_at": "2026-07-18T16:09:22.000368+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_f68d01f0": {
+    "triggered_at": "2026-07-18T16:09:23.950132+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_58398dbf": {
+    "triggered_at": "2026-07-18T16:09:25.105697+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_dc9cc4d1": {
+    "triggered_at": "2026-07-18T16:09:25.105697+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_da7defb6": {
+    "triggered_at": "2026-07-18T16:09:27.961541+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_ac580d67": {
+    "triggered_at": "2026-07-18T16:09:27.961541+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_79245c57": {
+    "triggered_at": "2026-07-18T16:09:30.024431+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_efe90963": {
+    "triggered_at": "2026-07-18T16:09:34.926684+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_2811fe73": {
+    "triggered_at": "2026-07-18T16:09:36.720351+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_82ce0a67": {
+    "triggered_at": "2026-07-18T16:09:38.452134+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_825e7f95": {
+    "triggered_at": "2026-07-18T16:09:38.452134+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_f338b007": {
+    "triggered_at": "2026-07-18T16:09:40.476100+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_38b75310": {
+    "triggered_at": "2026-07-18T16:09:40.476100+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_2f6892e5": {
+    "triggered_at": "2026-07-18T16:09:42.473652+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_24a5da29": {
+    "triggered_at": "2026-07-18T16:09:42.473652+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_b58d2ce6": {
+    "triggered_at": "2026-07-18T16:09:44.368176+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_423e050e": {
+    "triggered_at": "2026-07-18T16:09:44.368176+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_c56bc15b": {
+    "triggered_at": "2026-07-18T16:09:45.963258+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_6c99046a": {
+    "triggered_at": "2026-07-18T16:09:47.548220+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_5d3bb5f6": {
+    "triggered_at": "2026-07-18T16:09:48.991810+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_8247919f": {
+    "triggered_at": "2026-07-18T16:09:50.631504+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_e15af10f": {
+    "triggered_at": "2026-07-18T16:09:52.460467+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_560c448c": {
+    "triggered_at": "2026-07-18T16:09:54.536788+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_22cb310b": {
+    "triggered_at": "2026-07-18T16:09:56.596141+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_b776c8aa": {
+    "triggered_at": "2026-07-18T16:09:58.732779+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_b22f6778": {
+    "triggered_at": "2026-07-18T16:10:00.678968+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_c5141b1d": {
+    "triggered_at": "2026-07-18T16:10:02.542368+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_ac9d8302": {
+    "triggered_at": "2026-07-18T16:10:02.542368+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_f05920d5": {
+    "triggered_at": "2026-07-18T16:10:04.228533+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_45df7575": {
+    "triggered_at": "2026-07-18T16:10:05.952360+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_cd6c2b0c": {
+    "triggered_at": "2026-07-18T16:10:07.658305+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_00d84c89": {
+    "triggered_at": "2026-07-18T16:10:09.463331+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_bb9133fb": {
+    "triggered_at": "2026-07-18T16:10:11.361785+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_43ffe2cb": {
+    "triggered_at": "2026-07-18T16:10:13.250111+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_79dc773c": {
+    "triggered_at": "2026-07-18T16:10:15.197490+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_4544a6cd": {
+    "triggered_at": "2026-07-18T16:10:17.001024+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_01cfbf10": {
+    "triggered_at": "2026-07-18T16:10:19.279882+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_564ff371": {
+    "triggered_at": "2026-07-18T16:10:20.777614+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_46fe2420": {
+    "triggered_at": "2026-07-18T16:10:22.228463+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_d4b1caaf": {
+    "triggered_at": "2026-07-18T16:10:24.125722+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_6ea576b5": {
+    "triggered_at": "2026-07-18T16:10:25.805749+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_0da1e3e9": {
+    "triggered_at": "2026-07-18T16:10:27.720614+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_e3139948": {
+    "triggered_at": "2026-07-18T16:10:29.609059+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_c3b9b5c9": {
+    "triggered_at": "2026-07-18T16:10:31.549952+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_99a2ae6c": {
+    "triggered_at": "2026-07-18T16:10:33.342263+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_98889d0c": {
+    "triggered_at": "2026-07-18T16:10:35.255923+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_c64c57c6": {
+    "triggered_at": "2026-07-18T16:10:37.453066+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_817cfbae": {
+    "triggered_at": "2026-07-18T16:10:37.453066+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_056978c8": {
+    "triggered_at": "2026-07-18T16:10:39.209761+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_4eb177da": {
+    "triggered_at": "2026-07-18T16:10:41.116650+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_32c9b9c5": {
+    "triggered_at": "2026-07-18T16:10:41.116650+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_f7523f3e": {
+    "triggered_at": "2026-07-18T16:10:42.884912+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_1f2a0e61": {
+    "triggered_at": "2026-07-18T16:10:44.932366+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_68a4eb5f": {
+    "triggered_at": "2026-07-18T16:10:44.932366+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_8a6ffec2": {
+    "triggered_at": "2026-07-18T16:10:46.788769+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_06e7f0c0": {
+    "triggered_at": "2026-07-18T16:10:49.726455+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_0d51c434": {
+    "triggered_at": "2026-07-18T16:10:51.798994+00:00",
+    "acknowledged": false
+  },
+  "INTENSITY_SPIKE_4a45c178": {
+    "triggered_at": "2026-07-18T16:10:51.798994+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_cf9f2cbe": {
+    "triggered_at": "2026-07-18T16:10:53.314503+00:00",
+    "acknowledged": false
+  },
+  "BOTTOM_CHANGE_a814c7eb": {
+    "triggered_at": "2026-07-18T16:10:53.314503+00:00",
+    "acknowledged": false
+  },
+  "BOTTOM_CHANGE_8512d541": {
+    "triggered_at": "2026-07-18T16:10:55.505930+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_2bd6db27": {
+    "triggered_at": "2026-07-18T16:11:20.995044+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_5dca09a2": {
+    "triggered_at": "2026-07-18T16:11:38.161394+00:00",
+    "acknowledged": false
+  }
+}
