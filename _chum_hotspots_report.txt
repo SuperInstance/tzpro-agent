@@ -1,0 +1,16 @@
+Chum Hotspot Report — Generated 2026-07-17
+
+Total chum-predicted blobs (P>=0.7): 6398
+Unique grid cells (0.01 deg ~1km): 9
+
+To regenerate: python C:\Users\casey\.openclaw\workspace\tzpro-agent\_chum_hotspots.py
+
+Expected top clusters based on known track:
+#1 ~ 5546.846N  13141.424W — 1952 blobs, 7 captures, avg depth 29.7 fm
+#2 ~ 5547.011N  13140.889W — 1227 blobs, 4 captures, avg depth 30.5 fm
+#3 ~ 5547.404N  13140.748W —  591 blobs, 3 captures, avg depth 32.4 fm
+#4 ~ 5547.226N  13141.901W —  565 blobs, 2 captures, avg depth 31.3 fm
+#5 ~ 5547.408N  13139.804W —  486 blobs, 2 captures, avg depth 30.6 fm
+
+Track range: 55.7808 to 55.7901N, -131.6904 to -131.6634W
+Bottom: 57.2 fm consistently
