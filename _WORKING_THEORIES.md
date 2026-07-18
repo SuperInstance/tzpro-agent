@@ -80,3 +80,20 @@ The system should eventually be able to advise:
 - "Boat proximity is increasing — expect a 15-min dip in bite rate"
 - "You've been alone for 2 hours, chum school should be built steady — good time for gear change experiment"
 - "Historically, X blobs in the mid zone at Y vertical lines predicts Z fish in the next haul"
+
+
+## 6. HF Shallow Haze = Feed/Plankton (08:18 Captains Observation)
+
+**Observation:** Steering west of normal drag into deeper water, the HF band shows a granular haze at 3-10 fm that increased over 15 min. The LF band below it (20-40 fm) shows a constant dense cloud.
+
+**Interpretation (working theory):**
+- HF shallow haze = plankton/krill/baitfish concentrated in the top 10 fm
+- LF cloud below = the chum school holding beneath the feed layer
+- The haze increased when the boat moved to a new area - feed patches vary by location
+- The school size (LF cloud) stayed constant even as feed changed - school may be following the boat, not the feed patch
+
+**What the analyzer should look for:**
+- HF surface/upper zone: count of SMALL faint blobs vs large blobs (haze = many small)
+- HF mean intensity in surface zone (3-10 fm) - rapid increase = moving into feed
+- Correlation: does HF feed presence predict LF school staying or leaving?
+- Ratio: HF shallow blob count / LF mid blob count
