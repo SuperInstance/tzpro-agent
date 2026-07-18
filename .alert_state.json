@@ -470,5 +470,9 @@
   "VOCABULARY_MATCH_085f7582": {
     "triggered_at": "2026-07-18T18:50:44.604369+00:00",
     "acknowledged": false
+  },
+  "VOCABULARY_MATCH_d1ed353e": {
+    "triggered_at": "2026-07-18T19:00:49.022232+00:00",
+    "acknowledged": false
   }
 }

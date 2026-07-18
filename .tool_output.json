@@ -1,0 +1,8 @@
+{
+  "ok": true,
+  "rc": 0,
+  "out": "{'probabilities': {'species': {'chum_salmon': 0.1, 'pink_salmon': 0.1, 'coho_salmon': 0.1, 'chinook_salmon': 0.1, 'sablefish': 0.1, 'pacific_cod': 0.1, 'halibut': 0.1, 'rockfish': 0.1, 'lingcod': 0.1, 'pollock': 0.1}, 'depth_zone': {'surface': 0.2, 'upper': 0.2, 'mid': 0.2, 'lower': 0.2, 'floor': 0.2}, 'density': {'none': 0.055669, 'trace': 0.125115, 'light': 0.234954, 'moderate': 0.259969, 'heavy': 0.203728, 'dense_school': 0.120564}, 'competition': {'absent': 0.25, 'distant': 0.25, 'nearby': 0.25, 'crowded': 0.25}, 'feed': 0.615951}, 'top_beliefs': {'species': 'chum_salmon', 'species_conf': 0.1, 'depth_zone': 'surface', 'depth_zone_conf': 0.2, 'density': 'moderate', 'density_conf': 0.259969, 'competition': 'absent', 'competition_conf': 0.25, 'feed_active': True, 'feed_conf': 0.615951}, 'entropy': 6.231232, 'entropy_breakdown': {'species': 2.302585, 'depth_zone': 1.609438, 'density': 1.690561, 'competition': 1.386294, 'feed': -0.757646}, 'update_count': 1, 'timestamp': '2026-07-18T11:00:33.177913-08:00', 'last_sources': ['catch:chum']}\n",
+  "err": "",
+  "code": "from signal_fusion import FusionEngine; fe=FusionEngine(); fe.ingest_catch_report('chum',35,15); print(fe.belief_state())",
+  "cwd": "C:\\Users\\casey\\.openclaw\\workspace\\tzpro-agent"
+}
