@@ -1078,6 +1078,22 @@ def process_capture(
         recent_context = load_recent_context(json_path, n_frames=5)
         caption = generate_caption(analysis_lf, analysis_hf, recent_context)
 
+        # Phase 9: Signal fusion
+        try:
+            from signal_fusion import FusionEngine
+            engine = FusionEngine.load_or_new()
+            engine.ingest_capture(
+                lf=analysis_lf, hf=analysis_hf,
+                position=meta.get("position", {}),
+                boats=analysis_lf.get("boat_proximity", {})
+            )
+            engine.save()
+            fusion_state = engine.belief_state()
+            if engine.entropy() < 1.0:
+                log.info("Fusion consensus: %s", fusion_state)
+        except Exception as fusion_err:
+            log.debug("Signal fusion skipped: %s", fusion_err)
+
         write_analysis_json(json_path, meta, analysis, caption)
         update_markdown(md_path, analysis, caption)
         update_ship_log(meta, analysis, caption)
@@ -1118,6 +1134,16 @@ def run_forever() -> None:
                 log.info("Pending: %d capture(s)", len(candidates))
                 for png, js, md, meta in candidates:
                     process_capture(png, js, md, meta)
+
+                # Phase 10: Temporal anomaly check
+                try:
+                    from temporal_mining import scan_anomalies
+                    anomalies = scan_anomalies(n_frames=20)
+                    if anomalies:
+                        for a in anomalies[:3]:
+                            log.info("Anomaly [z=%.1f]: %s", a.get("z_score", 0), a.get("capture_id", "?"))
+                except Exception as temporal_err:
+                    log.debug("Temporal mining skipped: %s", temporal_err)
             else:
                 log.debug("No pending captures")
         except Exception as e:

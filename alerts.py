@@ -639,6 +639,18 @@ def check_alerts(db_path: Optional[str] = None) -> list[dict]:
         if alert:
             raw.append(alert)
 
+        # Rule 6: Generate recommendation from feedback loop
+        try:
+            from feedback_loop import FeedbackLoop
+            fb = FeedbackLoop()
+            if raw:
+                latest = _most_recent_capture()
+                suggestion = fb.suggest(latest)
+                if suggestion:
+                    log.info("Recommendation: %s", suggestion)
+        except Exception as fb_err:
+            log.debug("Feedback loop skipped: %s", fb_err)
+
     finally:
         if conn:
             conn.close()

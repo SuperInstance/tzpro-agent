@@ -430,5 +430,45 @@
   "VOCABULARY_MATCH_68e4ec06": {
     "triggered_at": "2026-07-18T17:11:05.104112+00:00",
     "acknowledged": false
+  },
+  "VOCABULARY_MATCH_c581b28b": {
+    "triggered_at": "2026-07-18T17:20:09.250113+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_67a417da": {
+    "triggered_at": "2026-07-18T17:30:13.221065+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_ba65cd63": {
+    "triggered_at": "2026-07-18T17:40:16.799772+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_b566cf0d": {
+    "triggered_at": "2026-07-18T17:50:20.970931+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_8f71e9f5": {
+    "triggered_at": "2026-07-18T18:00:24.933017+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_6b034e72": {
+    "triggered_at": "2026-07-18T18:10:28.708720+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_b6db54d4": {
+    "triggered_at": "2026-07-18T18:20:32.602355+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_3cf6c7f1": {
+    "triggered_at": "2026-07-18T18:30:36.401349+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_c8a5957e": {
+    "triggered_at": "2026-07-18T18:40:40.281306+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_085f7582": {
+    "triggered_at": "2026-07-18T18:50:44.604369+00:00",
+    "acknowledged": false
   }
 }

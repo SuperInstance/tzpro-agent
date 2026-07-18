@@ -1,0 +1,114 @@
+{
+  "class_params": {
+    "noise": {
+      "centroid_depth_fm": {
+        "mu": -1,
+        "sigma": 15.0
+      },
+      "area_px": {
+        "mu": 20,
+        "sigma": 100.0
+      },
+      "aspect_ratio": {
+        "mu": 1.0,
+        "sigma": 0.25
+      },
+      "mean_intensity": {
+        "mu": 0.15,
+        "sigma": 0.15
+      }
+    },
+    "chum": {
+      "centroid_depth_fm": {
+        "mu": 27.078042959427208,
+        "sigma": 6.989087640791211
+      },
+      "area_px": {
+        "mu": 592.7326968973747,
+        "sigma": 9418.913414985962
+      },
+      "aspect_ratio": {
+        "mu": 1.0409785202863961,
+        "sigma": 0.43982937353051443
+      },
+      "mean_intensity": {
+        "mu": 97.27231503579952,
+        "sigma": 7.9586129406410135
+      }
+    },
+    "pollock": {
+      "centroid_depth_fm": {
+        "mu": 50,
+        "sigma": 7.5
+      },
+      "area_px": {
+        "mu": 1200,
+        "sigma": 50.0
+      },
+      "aspect_ratio": {
+        "mu": 1.1,
+        "sigma": 0.125
+      },
+      "mean_intensity": {
+        "mu": 0.4,
+        "sigma": 0.075
+      }
+    },
+    "rockfish": {
+      "centroid_depth_fm": {
+        "mu": 80,
+        "sigma": 9.0
+      },
+      "area_px": {
+        "mu": 200,
+        "sigma": 60.0
+      },
+      "aspect_ratio": {
+        "mu": 1.5,
+        "sigma": 0.15
+      },
+      "mean_intensity": {
+        "mu": 0.5,
+        "sigma": 0.09
+      }
+    },
+    "halibut": {
+      "centroid_depth_fm": {
+        "mu": 100,
+        "sigma": 10.5
+      },
+      "area_px": {
+        "mu": 400,
+        "sigma": 70.0
+      },
+      "aspect_ratio": {
+        "mu": 2.0,
+        "sigma": 0.175
+      },
+      "mean_intensity": {
+        "mu": 0.55,
+        "sigma": 0.105
+      }
+    },
+    "bait_ball": {
+      "centroid_depth_fm": {
+        "mu": 25,
+        "sigma": 6.0
+      },
+      "area_px": {
+        "mu": 2000,
+        "sigma": 40.0
+      },
+      "aspect_ratio": {
+        "mu": 1.0,
+        "sigma": 0.1
+      },
+      "mean_intensity": {
+        "mu": 0.35,
+        "sigma": 0.06
+      }
+    }
+  },
+  "trained": true,
+  "num_samples": 419
+}
