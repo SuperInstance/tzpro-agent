@@ -125,8 +125,7 @@ def _post_to_ship_log(
     }
     data = json.dumps(payload).encode("utf-8")
 
-    max_retries = 3
-    for attempt in range(1, max_retries + 1):
+    for retry_attempt in range(3):
         try:
             req = urllib.request.Request(
                 SHIP_LOG_URL,
@@ -142,20 +141,13 @@ def _post_to_ship_log(
             )
             urllib.request.urlopen(req, timeout=SHIP_LOG_TIMEOUT_S)
             log.info("Alert posted to Ship Log: %s", alert_type)
-            return
-        except (urllib.error.URLError, urllib.error.HTTPError, OSError) as e:
-            if attempt < max_retries:
-                backoff = 2 ** (attempt - 1)  # 1s, 2s, 4s
-                log.warning(
-                    "Ship Log POST attempt %d/%d failed: %s — retrying in %ds",
-                    attempt, max_retries, e, backoff,
-                )
-                time.sleep(backoff)
+            break
+        except (urllib.error.URLError, OSError) as _e:
+            if retry_attempt < 2:
+                log.warning("Ship Log POST failed (attempt %d/3) — retrying", retry_attempt+1)
+                time.sleep(2 ** retry_attempt)
             else:
-                log.warning(
-                    "Ship Log POST failed after %d attempts (non-blocking): %s",
-                    max_retries, e,
-                )
+                raise
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -509,11 +501,7 @@ def check_stale_analysis(
     age_minutes = age_seconds / 60.0
 
     if age_minutes > STALE_MINUTES:
-        # Stable trigger_data
-            trigger_data = (
-                f"dir={cap_dir}|reason=stale|"
-                f"threshold={STALE_MINUTES}"
-            )
+        trigger_data = f"dir={cap_dir.name}|stable"
         return {
             "triggered": True,
             "severity": "critical",
