@@ -1419,6 +1419,15 @@ def process_capture(
         except Exception as alert_err:
             log.debug("Alert check skipped: %s", alert_err)
 
+        # Phase 12: Feed capture into memory system
+        try:
+            from memory_bridge import process_capture as memory_process
+            memory_process(json_path)
+        except ImportError:
+            pass  # memory_bridge not available
+        except Exception as mem_err:
+            log.debug("Memory bridge skipped: %s", mem_err)
+
         return True
 
     except Exception as e:
@@ -1454,6 +1463,16 @@ def run_forever() -> None:
                     log.debug("Temporal mining skipped: %s", temporal_err)
             else:
                 log.debug("No pending captures")
+
+            # Phase 13: Memory system tick (every loop, regardless of captures)
+            try:
+                from memory_bridge import tick
+                tick()
+            except ImportError:
+                pass  # memory_bridge not available
+            except Exception as mem_tick_err:
+                log.debug("Memory tick skipped: %s", mem_tick_err)
+
         except Exception as e:
             log.error("Loop error: %s", e, exc_info=True)
 
