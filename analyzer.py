@@ -1386,6 +1386,15 @@ def process_capture(
             school_state=school_state,
         )
 
+        # Phase 11: Memory recall — pattern-match against past conditions
+        try:
+            from memory_recall import caption_sentence
+            mem_line = caption_sentence(json_path)
+            if mem_line:
+                caption = caption + " " + mem_line
+        except Exception:
+            pass  # memory_recall is additive, never blocking
+
         # Phase 9: Signal fusion
         try:
             from signal_fusion import FusionEngine
