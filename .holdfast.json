@@ -1,0 +1,48 @@
+{
+  "pattern": [
+    {
+      "kind": "pattern",
+      "content": {
+        "entry": {
+          "graduated_at": 1784420706.7364278,
+          "kind": "capture",
+          "content": {
+            "species": "chum",
+            "depth_fm": 35
+          },
+          "count": 10,
+          "last_accessed": 1784421699.9035091
+        },
+        "vitality": 1.0,
+        "queued_at": 1784421699.903966
+      },
+      "source": "graduated",
+      "created_at": 1784427389.6476703,
+      "last_read_at": 1784427389.647671,
+      "read_count": 0,
+      "graduated_from": "stipes"
+    },
+    {
+      "kind": "pattern",
+      "content": {
+        "entry": {
+          "graduated_at": 1784421699.901719,
+          "kind": "capture",
+          "content": {
+            "species": "chum",
+            "depth_fm": 35
+          },
+          "count": 10,
+          "last_accessed": 1784427389.024594
+        },
+        "vitality": 1.0,
+        "queued_at": 1784427389.0249343
+      },
+      "source": "graduated",
+      "created_at": 1784427389.6483264,
+      "last_read_at": 1784427389.6483269,
+      "read_count": 0,
+      "graduated_from": "stipes"
+    }
+  ]
+}
