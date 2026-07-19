@@ -478,5 +478,137 @@
   "VOCABULARY_MATCH_b7e23435": {
     "triggered_at": "2026-07-18T19:10:53.477747+00:00",
     "acknowledged": false
+  },
+  "VOCABULARY_MATCH_fda04e98": {
+    "triggered_at": "2026-07-18T19:20:57.208383+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_6c5fd73f": {
+    "triggered_at": "2026-07-18T19:31:01.318051+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_fea8ecca": {
+    "triggered_at": "2026-07-18T19:41:06.370709+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_c4c6c881": {
+    "triggered_at": "2026-07-18T19:50:09.007847+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_c529e1dc": {
+    "triggered_at": "2026-07-18T20:00:11.228418+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_7867380e": {
+    "triggered_at": "2026-07-18T20:10:15.404488+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_61c92d27": {
+    "triggered_at": "2026-07-18T20:20:19.154170+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_766bcca0": {
+    "triggered_at": "2026-07-18T20:30:23.018847+00:00",
+    "acknowledged": false
+  },
+  "BOTTOM_CHANGE_952b77a8": {
+    "triggered_at": "2026-07-18T21:57:24.767996+00:00",
+    "acknowledged": false
+  },
+  "BOTTOM_CHANGE_10f078a0": {
+    "triggered_at": "2026-07-18T21:57:26.136192+00:00",
+    "acknowledged": false
+  },
+  "INTENSITY_SPIKE_27307815": {
+    "triggered_at": "2026-07-18T21:57:36.952563+00:00",
+    "acknowledged": false
+  },
+  "INTENSITY_SPIKE_ca96435a": {
+    "triggered_at": "2026-07-18T21:57:39.300248+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_a991534c": {
+    "triggered_at": "2026-07-18T21:59:07.159436+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_c5646d38": {
+    "triggered_at": "2026-07-18T22:00:07.949204+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_4f79908c": {
+    "triggered_at": "2026-07-18T22:00:10.221905+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_ed28418d": {
+    "triggered_at": "2026-07-18T22:00:12.759901+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_7d95cc14": {
+    "triggered_at": "2026-07-18T22:00:15.262420+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_ecd18918": {
+    "triggered_at": "2026-07-18T22:00:17.843448+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_5d04616c": {
+    "triggered_at": "2026-07-18T22:00:20.443817+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_154624ff": {
+    "triggered_at": "2026-07-18T22:00:22.577119+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_afb39f4b": {
+    "triggered_at": "2026-07-18T22:00:24.691585+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_3e26d862": {
+    "triggered_at": "2026-07-18T22:00:26.597964+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_398d21e8": {
+    "triggered_at": "2026-07-18T22:00:28.809269+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_8a7827d6": {
+    "triggered_at": "2026-07-18T22:00:31.137588+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_d1fe5778": {
+    "triggered_at": "2026-07-18T22:00:33.208838+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_8645652b": {
+    "triggered_at": "2026-07-18T22:00:35.228688+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_1a5e65a0": {
+    "triggered_at": "2026-07-18T22:00:40.688634+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_95bf8421": {
+    "triggered_at": "2026-07-18T22:00:42.715423+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_dc5fda1c": {
+    "triggered_at": "2026-07-18T22:00:49.233492+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_540996b5": {
+    "triggered_at": "2026-07-18T22:00:51.317792+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_0d0678e8": {
+    "triggered_at": "2026-07-18T22:00:53.219213+00:00",
+    "acknowledged": false
+  },
+  "BOAT_PROXIMITY_6ee83ab0": {
+    "triggered_at": "2026-07-18T22:00:55.531691+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_19d0fa48": {
+    "triggered_at": "2026-07-19T00:21:08.529619+00:00",
+    "acknowledged": false
   }
 }

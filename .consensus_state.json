@@ -1,0 +1,43 @@
+{
+  "historical_weights": {
+    "signal_fusion": 0.85,
+    "vocabulary": 0.7,
+    "school_state": 0.6,
+    "blob_classifier": 0.5
+  },
+  "vote_history": [
+    {
+      "agent": "signal_fusion",
+      "species": "chum",
+      "confidence": 0.82,
+      "weight": 0.85,
+      "evidence": "Bayesian fusion favors chum",
+      "timestamp": 1784411333.6908886
+    },
+    {
+      "agent": "vocabulary",
+      "species": "chum",
+      "confidence": 0.95,
+      "weight": 0.7,
+      "evidence": "Only known species in zone",
+      "timestamp": 1784411333.6908927
+    },
+    {
+      "agent": "school_state",
+      "species": "chum",
+      "confidence": 0.65,
+      "weight": 0.6,
+      "evidence": "School holding at 24-38 fm",
+      "timestamp": 1784411333.6908946
+    },
+    {
+      "agent": "blob_classifier",
+      "species": "chum",
+      "confidence": 0.45,
+      "weight": 0.5,
+      "evidence": "Blob shape matches chum profile",
+      "timestamp": 1784411333.6908956
+    }
+  ],
+  "updated_at": 1784411333.6909466
+}

@@ -1,0 +1,27 @@
+{
+  "historical_weights": {
+    "signal_fusion": 0.85,
+    "vocabulary": 0.7,
+    "school_state": 0.6,
+    "blob_classifier": 0.5
+  },
+  "vote_history": [
+    {
+      "agent": "vocabulary",
+      "species": "chum",
+      "confidence": 0.95,
+      "weight": 0.7,
+      "evidence": "vocabulary lookup @ 35.0 fm",
+      "timestamp": 1784411984.6830728
+    },
+    {
+      "agent": "blob_classifier",
+      "species": "chum",
+      "confidence": 1.0,
+      "weight": 0.5,
+      "evidence": "blob classifier",
+      "timestamp": 1784411984.6830788
+    }
+  ],
+  "updated_at": 1784411984.683103
+}

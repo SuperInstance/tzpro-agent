@@ -1227,6 +1227,60 @@ def update_markdown(md_path: Path, analysis: dict, caption: str) -> bool:
 #  Watcher Loop
 # ══════════════════════════════════════════════════════════════════════
 
+
+def _build_school_history(json_path: Path, n_frames: int = 5) -> list[dict]:
+    """Build a history list for classify_school from recent captures.
+
+    Reads the most recent N analysis JSONs from the same day folder
+    and extracts blob_count, blobs, boats, and haze fields.
+
+    Returns list of dicts suitable for classify_school(), oldest first.
+    """
+    day_dir = json_path.parent
+    if not day_dir.is_dir():
+        return []
+
+    jsons = sorted(day_dir.glob("*.json"))
+
+    history: list[dict] = []
+    for js in jsons:
+        try:
+            data = json.loads(js.read_text(encoding="utf-8"))
+            analysis = data.get("analysis", {})
+            heuristic = analysis.get("heuristic", {})
+            lf = heuristic.get("lf", {})
+            hf = heuristic.get("hf", {})
+
+            blobs = lf.get("blobs", [])
+            boats = lf.get("boat_proximity", {})
+            haze = hf.get("haze", {})
+
+            history.append({
+                "capture_id": data.get("capture_id", js.stem),
+                "blob_count": lf.get("blob_count", 0),
+                "blobs": blobs,
+                "boats": boats.get("vertical_line_count", 0),
+                "haze": haze.get("feed_intensity", "none"),
+                "zone_distribution": _zone_dist_from_profiles(
+                    lf.get("zone_profiles", {})
+                ),
+            })
+        except (json.JSONDecodeError, KeyError, OSError):
+            continue
+
+    return history[-n_frames:] if history else []
+
+
+def _zone_dist_from_profiles(zone_profiles: dict) -> dict[str, float]:
+    """Extract mean intensities per zone from profile data."""
+    return {
+        zname: zone_profiles.get(zname, {}).get("mean_intensity", 0.0)
+        for zname in ZONES
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════
+
 def find_unanalyzed_captures() -> list[tuple[Path, Path, Path, dict]]:
     """Scan captures/v3/ for .png files needing analysis.
 

@@ -1,8 +1,8 @@
 {
   "ok": true,
   "rc": 0,
-  "out": "analyzer OK\ntrack_blobs: {'blob_count_delta': 0, 'migrating_up': 0, 'migrating_down': 0, 'new_blobs': 0, 'lost_blobs': 0, 'matched_pairs': 2, 'mean_depth_shift_fm': -1.0}\n",
+  "out": "0ccc4f87 analyzer intelligence v2: school state, catch patterns, multi-frame tracking\n230c5741 integration tests verified\n32be026f offline llm with template+markov+gemma modes\ncead1a20 tool rescue scripts + working tool server\n795383d6 integrate all modules into live pipeline\n",
   "err": "",
-  "code": "import analyzer; print('analyzer OK'); r=analyzer.track_blobs([{'centroid_depth_fm':30},{'centroid_depth_fm':35}],[{'centroid_depth_fm':31},{'centroid_depth_fm':36}]); print('track_blobs:', r)",
+  "cmd": "git log --oneline -5",
   "cwd": "C:\\Users\\casey\\.openclaw\\workspace\\tzpro-agent"
 }
