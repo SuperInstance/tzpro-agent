@@ -1,0 +1,80 @@
+{
+  "api_version": "v2.1",
+  "vessel": {
+    "name": "tzpro-agent",
+    "display_name": "TZPro Agent — F/V EILEEN Fishing Intelligence",
+    "version": "2.0.0",
+    "agent_type": "fishing-intelligence",
+    "host_vessel": "F/V EILEEN",
+    "homeport": "Southeast Alaska",
+    "description": "Real-time fishing vessel intelligence: OCR capture pipeline, species classification, tide-aware memory, bathymetric analysis, multi-model consensus, and fleet communication."
+  },
+  "capabilities": [
+    {
+      "name": "screen-capture",
+      "version": "3.0"
+    },
+    {
+      "name": "species-classification",
+      "version": "2.0"
+    },
+    {
+      "name": "tide-aware-memory",
+      "version": "1.0"
+    },
+    {
+      "name": "bathymetric-analysis",
+      "version": "1.0"
+    },
+    {
+      "name": "multi-model-consensus",
+      "version": "2.0"
+    },
+    {
+      "name": "catch-logging",
+      "version": "2.0"
+    },
+    {
+      "name": "fleet-monitor",
+      "version": "1.0"
+    },
+    {
+      "name": "i2i-chat",
+      "version": "2.1"
+    },
+    {
+      "name": "anomaly-detection",
+      "version": "1.0"
+    }
+  ],
+  "i2i_protocol": {
+    "version": "2.1",
+    "bottle_dir": ".vessel/bottles",
+    "supported_types": [
+      "I2I:BOTTLE",
+      "I2I:SYNTHESIS",
+      "I2I:ACK",
+      "I2I:CHALLENGE",
+      "I2I:CHECKPOINT",
+      "I2I:OBSERVATION",
+      "I2I:QUERY",
+      "I2I:RESPONSE",
+      "I2I:ALERT"
+    ],
+    "transport": "filesystem",
+    "poll_interval_ms": 2000
+  },
+  "endpoints": {
+    "cortex": ".vessel/config.json",
+    "bottle_ingress": ".vessel/bottles/incoming/",
+    "bottle_egress": ".vessel/bottles/outgoing/"
+  },
+  "fleet_peers": [
+    {
+      "name": "hermit",
+      "path": "../hermit",
+      "role": "cognitive-command-center",
+      "cortex": "../hermit/CORTEX.json"
+    }
+  ]
+}

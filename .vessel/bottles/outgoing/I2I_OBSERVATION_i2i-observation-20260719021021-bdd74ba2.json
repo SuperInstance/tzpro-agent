@@ -1,0 +1,49 @@
+{
+  "bottle": {
+    "id": "i2i-observation-20260719021021-bdd74ba2",
+    "sender": "tzpro-agent",
+    "recipient": "hermit",
+    "type": "I2I:OBSERVATION",
+    "payload": {
+      "source": "tzpro-agent-sounder-capture",
+      "capture_id": "1610_5546.805N_13141.931W",
+      "timestamp_utc": "2026-07-18T00:10:03.815592+00:00",
+      "position": {
+        "lat": 55.78008366666667,
+        "lon": -131.69884766666667,
+        "sog_kts": 1.638,
+        "cog_deg": 92.29
+      },
+      "depth": {
+        "max_fm": 60,
+        "bottom_depth_fm": 57.2,
+        "bottom_confidence": "high"
+      },
+      "sounder_returns": {
+        "blob_count": 282,
+        "mid_zone_mean": 46.422130321356576,
+        "mid_zone_peak": 255,
+        "thermocline_count": 2
+      },
+      "metadata": {
+        "caption": "Bottom detected at 57.2 fm (high confidence). 2 thermal layers detected at 14.7 fm, 56.9 fm. 282 echo returns detected in the LF band across 4 zones (surface, upper, mid, floor). Mid-water column (20-40 fm) mean intensity 46.4/255, peak 255/255.",
+        "day_folder": "2026-07-17_5546.982N_13140.766W",
+        "schema_version": 2,
+        "file_size_bytes": 146429,
+        "analyzed_at": "2026-07-18T00:18:05.211981+00:00"
+      }
+    },
+    "context": {
+      "fleet": "tzpro-hermit-dual-instance",
+      "data_source": "captures.db",
+      "pipeline": "ocr-capture-v3"
+    },
+    "timestamp": "2026-07-19T02:10:21.177064+00:00"
+  },
+  "signature": "tzpro-agent@eileen",
+  "routing": {
+    "direction": "outgoing",
+    "target_cortex": "../hermit/CORTEX.json",
+    "requires_ack": false
+  }
+}

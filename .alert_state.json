@@ -642,5 +642,13 @@
   "VOCABULARY_MATCH_a7355d39": {
     "triggered_at": "2026-07-19T01:40:45.333793+00:00",
     "acknowledged": false
+  },
+  "VOCABULARY_MATCH_2c45969f": {
+    "triggered_at": "2026-07-19T01:50:48.498678+00:00",
+    "acknowledged": false
+  },
+  "VOCABULARY_MATCH_ae5a31fe": {
+    "triggered_at": "2026-07-19T02:00:41.505236+00:00",
+    "acknowledged": false
   }
 }

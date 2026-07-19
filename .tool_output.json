@@ -1,11 +1,8 @@
 {
   "ok": true,
-  "steps": [
-    "[OK] git add -A",
-    "  stderr: warning: in the working copy of 'analyzer.py', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'stipes.py', LF will be replaced by CRLF the next time Git touches it",
-    "[OK] git commit -m stipes graduated memory layer",
-    "  stdout: [master 86662e3d] stipes graduated memory layer\n 9 files changed, 932 insertions(+), 4 deletions(-)\n create mode 100644 .consensus_state.json\n create mode 100644 .consensus_upgrade_state.json\n create mode 100644 stipes.py",
-    "[OK] git push",
-    "  stderr: To https://github.com/SuperInstance/tzpro-agent.git\n   98779dab..86662e3d  master -> master"
-  ]
+  "rc": 0,
+  "out": "{\n  \"operation\": \"vessel_launch\",\n  \"timestamp\": \"2026-07-19T02:10:21.173554+00:00\",\n  \"vessel\": \"tzpro-agent\",\n  \"steps\": [\n    {\n      \"step\": \"discover_hermit\",\n      \"status\": \"ok\",\n      \"hermit_name\": \"a2a-native-notebooklm\",\n      \"hermit_version\": \"1.0.0-a2a\"\n    },\n    {\n      \"step\": \"write_vessel_identity\",\n      \"status\": \"ok\",\n      \"path\": \"C:\\\\Users\\\\casey\\\\.openclaw\\\\workspace\\\\tzpro-agent\\\\.vessel\\\\config.json\"\n    },\n    {\n      \"step\": \"send_handshake_ack\",\n      \"status\": \"ok\",\n      \"bottle_path\": \"C:\\\\Users\\\\casey\\\\.openclaw\\\\workspace\\\\tzpro-agent\\\\.vessel\\\\bottles\\\\outgoing\\\\I2I_ACK_i2i-ack-20260719021021-e18be261.json\"\n    },\n    {\n      \"step\": \"ingest_captures\",\n      \"status\": \"ok\",\n      \"count\": 5,\n      \"bottle_paths\": [\n        \"C:\\\\Users\\\\casey\\\\.openclaw\\\\workspace\\\\tzpro-agent\\\\.vessel\\\\bottles\\\\outgoing\\\\I2I_OBSERVATION_i2i-observation-20260719021021-bdd74ba2.json\",\n        \"C:\\\\Users\\\\casey\\\\.openclaw\\\\workspace\\\\tzpro-agent\\\\.vessel\\\\bottles\\\\outgoing\\\\I2I_OBSERVATION_i2i-observation-20260719021021-ad1eea9c.json\",\n        \"C:\\\\Users\\\\casey\\\\.openclaw\\\\workspace\\\\tzpro-agent\\\\.vessel\\\\bottles\\\\outgoing\\\\I2I_OBSERVATION_i2i-observation-20260719021021-4a34129f.json\",\n        \"C:\\\\Users\\\\casey\\\\.openclaw\\\\workspace\\\\tzpro-agent\\\\.vessel\\\\bottles\\\\outgoing\\\\I2I_OBSERVATION_i2i-observation-20260719021021-ca6fb2d5.json\",\n        \"C:\\\\Users\\\\casey\\\\.openclaw\\\\workspace\\\\tzpro-agent\\\\.vessel\\\\bottles\\\\outgoing\\\\I2I_OBSERVATION_i2i-observation-20260719021021-2dac2f86.json\"\n      ]\n    }\n  ],\n  \"launch_successful\": true\n}\n",
+  "err": "",
+  "code": "import sys; sys.path.insert(0, r'C:\\Users\\casey\\.openclaw\\workspace\\tzpro-agent'); import importlib; import hermit_vessel; importlib.reload(hermit_vessel); from hermit_vessel import HermitVessel; v = HermitVessel(); r = v.launch(ingest_captures=True); import json; print(json.dumps(r, indent=2, default=str))",
+  "cwd": "C:\\Users\\casey\\.openclaw\\workspace\\tzpro-agent"
 }

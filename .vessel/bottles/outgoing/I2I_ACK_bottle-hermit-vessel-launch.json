@@ -1,0 +1,54 @@
+{
+  "bottle": {
+    "id": "bottle-hermit-vessel-launch",
+    "sender": "tzpro-agent",
+    "recipient": "hermit",
+    "type": "I2I:ACK",
+    "payload": {
+      "message": "VESSEL LAUNCH ACKNOWLEDGMENT",
+      "sender_identity": {
+        "name": "tzpro-agent",
+        "agent_type": "fishing-intelligence",
+        "host_vessel": "F/V EILEEN",
+        "homeport": "Southeast Alaska",
+        "cortex_ref": ".vessel/config.json"
+      },
+      "capabilities_offered": [
+        "screen-capture",
+        "species-classification",
+        "tide-aware-memory",
+        "bathymetric-analysis",
+        "catch-logging",
+        "anomaly-detection"
+      ],
+      "data_sources": [
+        "Garmin sounder captures (OCR pipeline)",
+        "TZ Pro navigation display captures",
+        "GPS/NMEA position stream",
+        "Catch logs with species/gear/depth correlation",
+        "Tide-phase correlated memory recall"
+      ],
+      "query_topics": [
+        "What fish species are present in my sounder captures?",
+        "Analyze catch patterns by tide phase, depth, and location",
+        "Compare today's chum signatures against historical patterns",
+        "Is this bottom type consistent with known halibut grounds?",
+        "Detect anomalies in GPS track vs known routes"
+      ],
+      "memory_architecture": "tide_pool → stipes → holdfast (12h → reinforced → permanent)",
+      "handshake_token": "hermit-vessel-launch-2026-07-18"
+    },
+    "context": {
+      "fleet": "tzpro-hermit-dual-instance",
+      "operation": "vessel_launch",
+      "launch_timestamp_utc": "2026-07-19T02:00:00Z"
+    },
+    "timestamp": "2026-07-19T02:06:00Z"
+  },
+  "signature": "tzpro-agent@eileen",
+  "routing": {
+    "direction": "outgoing",
+    "target_cortex": "../hermit/CORTEX.json",
+    "requires_ack": true
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "bottle": {
+    "id": "i2i-ack-20260719020919-67c52f3b",
+    "sender": "tzpro-agent",
+    "recipient": "hermit",
+    "type": "I2I:ACK",
+    "payload": {
+      "message": "VESSEL LAUNCH: tzpro-agent online and connected to Hermit fleet",
+      "sender_identity": {
+        "name": "tzpro-agent",
+        "display_name": "TZPro Agent — F/V EILEEN Fishing Intelligence",
+        "version": "2.0.0",
+        "agent_type": "fishing-intelligence",
+        "host_vessel": "F/V EILEEN",
+        "homeport": "Southeast Alaska",
+        "description": "Real-time fishing vessel intelligence: OCR capture pipeline, species classification, tide-aware memory, bathymetric analysis, multi-model consensus, and fleet communication."
+      },
+      "memory_architecture": "tide_pool → stipes → holdfast",
+      "data_sources": [
+        "Garmin sounder captures (OCR pipeline v3)",
+        "TZ Pro navigation display captures",
+        "GPS/NMEA position stream",
+        "Catch logs with species/gear/depth correlation"
+      ],
+      "handshake_token": "handshake-20260719020919-3bb4b026"
+    },
+    "context": {
+      "fleet": "tzpro-hermit-dual-instance"
+    },
+    "timestamp": "2026-07-19T02:09:19.189367+00:00"
+  },
+  "signature": "tzpro-agent@eileen",
+  "routing": {
+    "direction": "outgoing",
+    "target_cortex": "../hermit/CORTEX.json",
+    "requires_ack": false
+  }
+}
