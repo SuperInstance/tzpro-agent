@@ -1,569 +1,498 @@
-# tzpro-agent — First Sensor Node of the CoCapn Ecosystem
+# TZ Pro Agent — Your Boat's Digital Watchstander
 
-**Eyes on the TZ Pro display. Watches the sounder, reads the bottom, learns the grounds, compares every reading against the chart.**
+**Eyes on the sounder. Records what it sees. Learns your grounds. Tells you what changed.**
 
-![Status](https://img.shields.io/badge/status-founding--day-blue)
-![Platform](https://img.shields.io/badge/platform-Windows%2011-lightgrey)
-![GPU](https://img.shields.io/badge/GPU-RTX%204050-success)
-![Repo](https://img.shields.io/badge/CoCapn-tzpro--agent-ff6b35)
-
-Built and first-tested on **F/V EILEEN**, Ketchikan Alaska — July 15, 2026.
-Part of the [CoCapn](https://CoCapn.com) ecosystem.
+![Status](https://img.shields.io/badge/status-operational-green)
+![Boat](https://img.shields.io/badge/boat-F/V%20EILEEN-blue)
+![Location](https://img.shields.io/badge/home-Ketchikan%2C%20Alaska-8b4513)
+![Built](https://img.shields.io/badge/first_cast-July%2015%2C%202026-ff6b35)
 
 ---
 
-## Table of Contents
+## TL;DR — What Does This Actually Do?
 
-- [What This Is](#what-this-is)
-- [The Hierarchy](#the-hierarchy)
-- [The Founding Story](#the-founding-story)
-- [Architecture Overview](#architecture-overview)
-- [Pipeline Detail](#pipeline-detail)
-  - [Phase 1: Capture](#phase-1-capture--analysis)
-  - [Phase 2: Contour Extraction](#phase-2-bathymetric-contour-extraction)
-  - [Phase 3: Anomaly Detection](#phase-3-anomaly-detection)
-- [Contour Query Engine](#contour-query-engine)
-- [The Fleet (Multi-Model Strategy)](#the-fleet-multi-model-strategy)
-- [NMEA Infrastructure](#nmea-infrastructure)
-- [Sounder Palette](#sounder-palette)
-- [Files](#files)
-- [Deployment Guide](#deployment-guide)
-- [Quick Start](#quick-start)
-- [Data Format](#data-format)
-- [Phase Status](#phase-status)
-- [Philosophical Anchors](#philosophical-anchors)
-- [Long-term Vision](#long-term-vision)
-- [Repositories](#repositories)
+You know how you stare at the sounder all day, watching the bottom, watching for fish, noticing "huh, that spot used to be harder bottom" or "the thermocline sat deeper last week"? **This does that for you, automatically, every 30 seconds, and writes it down.**
+
+Think of it like a **deckhand who never sleeps, never gets seasick, and takes perfect notes** — but instead of a notebook, it builds a searchable, queryable record of every pass over your grounds.
 
 ---
 
-## What This Is
+## The Problem It Solves
 
-TZ Pro (TimeZero) is the primary navigation software on F/V EILEEN. It renders electronic charts, overlays bathymetry, displays AIS targets, and — most importantly — shows a real-time **sounder/fishfinder feed** from the vessel's transducer.
+### What You Know (But Can't Prove)
+- "That hump at 54°47' holds chum in July"
+- "The bottom's softer now than it was three years ago"
+- "When the tide pushes hard, the fish sit 5 fathoms deeper"
+- "That rock pile at 48 fm — gear comes up clean on the north side"
 
-The TZ Pro display contains a lot of information. Most of it — lat, lon, SOG, COG, time — is already available as structured data from the NMEA 0183 bridge. **The one thing on that screen that can't be extracted any other way is the sounder.**
+### What You Lose
+- Memory fades between seasons
+- Crew turnover loses institutional knowledge
+- "I think it was around here" isn't a waypoint
+- Paper logbooks don't search, don't overlay, don't trend
 
-The sounder shows:
-- **Bottom depth** — what's below the keel right now
-- **Bottom hardness** — hard/medium/mud/silt from return intensity
-- **Fish returns** — arches, density, depth range, distribution
-- **Thermoclines** — temperature layers in the water column
-- **Bottom shape** — transitions between bottom types
-
-This agent captures the sounder panel every 30 seconds, analyzes it with OpenCV, pairs it with the vessel's NMEA position and speed, compares the reading against a high-resolution bathymetric contour layer, and logs every discrepancy.
-
-**Why this matters:** Over a fishing season, the system accumulates a time-stamped, location-stamped record of every pass over your grounds. That record is the foundation for:
-- Knowing where the bottom actually is (vs where the chart says it is)
-- Correlating catch with bottom type, depth, and tidal stage
-- Spotting changes between seasons — scoured bottoms, silted-in contours, new structure
-- Answering "what did this spot look like last July?" with actual data, not memory
-
-**The broader vision:** This is the first field sensor node of a platform that lets any fisherman wire their own boat with off-the-shelf hardware and open-source code. The culture is "wire it yourself, make it yours." The installer is just a human-agent-in-the-loop — pushing buttons the agent tells them to push, reading back numbers it asks for.
-
----
-
-## The Hierarchy
-
-```
-Captain (Picard) — Casey DiGennaro
-  Mission: produce product, stay safe, keep crew comfortable
-  Sets the goals. Strategic. Runs the boat.
-
-  └── Riker (Operations Officer) — the main agent
-      Mission: maintain the machine, integrate new systems, keep vision
-      Sees the whole system. Delegates to copilots.
-      Spots when two copilots are fighting each other.
-      Talks to the Captain as a colleague, not a tool.
-
-      └── tzpro-agent (this repo) — Tactical Copilot
-          Blinders-on. Watches the sounder. Nothing else.
-          Doesn't know about the fuel tank, the autopilot, or the crew schedule.
-          Doesn't need to.
-
-      └── Future copilots (planned):
-          ├── Autopilot Copilot — watches rudder/compass/course, learns to steer gentler
-          ├── Engine Room Copilot — temps, fuel, RPM, vibration
-          └── Catch Log Copilot — species, counts, position rigged
-```
-
-**Key distinction:** A copilot is a racehorse with blinders. It does one thing perfectly and never looks up. Riker is not a copilot. Riker is closer to the Captain than to the crew. Riker decides which copilots to deploy, connects new sensors, rewires the architecture, and sees the whole boat as a machine with cogs that need to mesh.
+### What This Gives You
+| Before | After |
+|--------|-------|
+| "Good chum spot somewhere near that corner" | **55°47.312'N 131°41.778'W — 08:00 AKDT, July 18 — 557 fish returns at 31.9 fm, holding on 26 fm thermocline** |
+| "Bottom feels different this year" | **Delta: -3.2 fm vs 2024 survey at this exact lat/lon. Bottom type shifted hard→soft.** |
+| "Fish were deeper on the flood" | **Query: "Show me all chum detections on flood tide > 35 fm"** → 47 matches, avg depth 38.2 fm |
+| "Wonder what that spot looked like last July" | **Type the coordinates. Get the echogram. Get the bottom type. Get the fish count.** |
 
 ---
 
-## The Founding Story
+## Real-World Example: A Day on the Grounds
 
-On July 15, 2026, at 07:16 AKDT, the Captain of F/V EILEEN sent two words to his AI agent: **"keep moving."** 
+### The Setup (One Time)
+```
+You're on F/V Eileen, longlining for chum in SE Alaska.
+Gear: 32 hooks, 1.5 fm spacing, soaking at ~48 fm.
+Sounder: Furuno TZ Pro (50/200 kHz dual band).
+GPS: u-blox on COM6.
+```
 
-The NMEA bridge was down. Docker wasn't routing. The TZ Pro display was showing position from a dead fix. The previous night's session had left a trail of broken tools.
+### What Happens Automatically
 
-Over the next seven hours, the agent (codename: Riker) rebuilt the NMEA bridge in shared mode to fix an `INVALID_HANDLE` bug, fixed the Docker MCP gateway, proved out a sounder capture pipeline, extracted the first structured observation from the TZ Pro display at 10:59 AKDT, and — with the Captain — defined the architecture of a new kind of fishing intelligence platform.
+**06:00 AM — You start the haul**
+- Agent is already running (started at boot via Windows Task Scheduler)
+- Every 30 seconds: *click* — sounder screen captured
+- Every 4 minutes: *click* — full chart screen saved (your filmstrip)
 
-The founding document (see `FISHINGLOG_FOUNDING.md` in the hermit-crab repo) records the full transcript. The philosophy is captured in seven writings by the Captain himself — "The Hundred Hooks," "The Person You Forgot Was There," "Charts Not Maps," "Ebb and Flow," "Cognitive Photosynthesis," and "The Reflection You Mistook for Depth."
+**07:15 AM — First chum comes over the roller**
+- Agent's analyzer just processed the 07:10 sounder frame
+- **Found:** 530 returns in mid-water (20–40 fm), biggest blob 254k pixels at 29.9 fm
+- **Logged:** "chum signature — high LF, moderate HF, thermocline at 25.6 fm"
+- **Compared to chart:** Chart says 67 fm. Sounder says 57.2 fm. **Delta: -9.8 fm**
+- **Saved:** Anomaly #247 in the database. Tagged for QGIS export.
 
-This repo is the first artifact of that founding session. The sensor node that proved the pipeline works.
+**08:00 AM — The bite turns on**
+- **Peak frame:** 557 returns, 91.2 avg intensity, monster blob 279k pixels at 31.9 fm
+- **Position:** 55°47.312'N, 131°41.778'W (drifting SW at 1.6 kts)
+- **You say to crew:** "Hook 18 — big halibut!" 
+- Agent hears nothing (yet) — but the **camera on the rail** records it
+- Later: voice note + sounder frame = labeled training data
+
+**12:00 PM — Haul done, steaming home**
+- Agent has 120 sounder analyses for the day
+- 47 anomalies logged (chart vs reality)
+- 3 clear chum windows identified (07–08, 11:30–12:00, 14:00)
+- All in `memory/observations/2026-07-18.jsonl` — searchable, permanent
+
+**That evening (or next time you're at the dock)**
+```
+You: "What did 55°47.3N 131°41.8W look like yesterday at 0800?"
+Agent: [shows echogram, bottom depth 57.2 fm, 530 mid-water returns, 
+        thermocline 26 fm, LF/HF ratio 2.1 → chum signature]
+        
+You: "How's that compare to the chart?"
+Agent: "Chart says 67 fm. You're 10 fm shallower. 
+        Same spot last year: 8 fm delta. Bottom's building up."
+        
+You: "Export the anomalies for QGIS."
+Agent: "Done. bathymetry/qgis_corrections.csv ready. 
+        Open in QGIS, overlay on your chartplotter."
+```
 
 ---
 
-## Architecture Overview
+## How It Works (In Fisherman Terms)
+
+### The Three Pieces
 
 ```
-                         ┌──────────────────────────────────────┐
-                         │         NMEA 0183 (COM6)             │
-                         │         u-blox GPS @ 4800 baud      │
-                         └──────────────┬───────────────────────┘
-                                        │
-                         ┌──────────────▼───────────────────────┐
-                         │         nmea_bridge.py                │
-                         │  (shared-mode, FILE_SHARE_READ|WRITE) │
-                         │  TCP :6006 (hermitd) + :6007 (TZ Pro)│
-                         └────┬──────────────┬──────────────────┘
-                              │              │
-                     ┌────────▼───┐  ┌───────▼────────┐
-                     │ hermitd    │  │ TZ Pro / Nobel │
-                     │ :8654      │  │ :6007 input    │
-                     │ dashboard  │  │ chart display  │
-                     └─────┬──────┘  │ DISPLAY6       │
-                           │         │ 1920×1080      │
-                           │         └───────┬────────┘
-                           │                 │
-                           │     ┌───────────▼────────────┐
-                           │     │    screenshot.ps1       │
-                           │     │    PowerShell GDI+ cap  │
-                           │     └───────────┬────────────┘
-                           │                 │
-                           │     ┌───────────▼────────────┐
-                           │     │    capture.py           │
-                           │     │    30s / 4min loop     │
-                           │     │    crop + analyze + log│
-                           │     └───────────┬────────────┘
-                           │                 │
-               ┌───────────┴─────────────────▼─────────────────────┐
-               │                 _log_and_analyze()                 │
-               │                                                    │
-               │    ┌──────────────────┐    ┌──────────────────┐   │
-               │    │ sounder_analyzer │    │  contour_query   │   │
-               │    │ .py              │    │  .py             │   │
-               │    │ OpenCV pixel     │    │  numpy grid      │   │
-               │    │ analysis         │    │  0.001° res      │   │
-               │    └────────┬─────────┘    └────────┬─────────┘   │
-               │             │                       │             │
-               │             ▼                       ▼             │
-               │    ┌──────────────────┐    ┌──────────────────┐   │
-               │    │ Real sounder     │    │ Charted depth    │   │
-               │    │ depth (53.2 fm)  │    │ (67.3 fm)        │   │
-               │    └────────┬─────────┘    └────────┬─────────┘   │
-               │             │                       │             │
-               │             ▼                       ▼             │
-               │    ┌────────────────────────────────────────────┐ │
-               │    │         anomaly_logger.py                   │ │
-               │    │         SQLite: delta_fm = -14.1           │ │
-               │    │         QGIS export → map correction       │ │
-               │    └────────────────────────────────────────────┘ │
-               └────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                        YOUR BOAT                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   GPS (COM6) ──▶ NMEA Bridge ──▶ TZ Pro (nav)                   │
+│        │                    │                                    │
+│        │                    └──▶ TCP :6006 ──▶ Agent Dashboard   │
+│        │                    └──▶ TCP :6007 ──▶ TZ Pro (position) │
+│        │                                                     │
+│        ▼                                                     │
+│   ┌─────────────────────────────────────────┐                │
+│   │         SOUNDER ANALYZER                │                │
+│   │  (runs on your laptop/wheelhouse PC)    │                │
+│   │                                          │                │
+│   │  Every 30 sec:                           │                │
+│   │  1. Screenshot sounder panel             │                │
+│   │  2. Crop to just the water column        │                │
+│   │  3. Read the palette (blue→red scale)    │                │
+│   │  4. Find the bottom line                 │                │
+│   │  5. Count fish returns above it          │                │
+│   │  6. Measure intensity, depth, spread     │                │
+│   │  7. Detect thermoclines                  │                │
+│   │  8. Classify bottom type (hard/soft/mud) │                │
+│   │  9. OCR the depth scale numbers          │                │
+│   │  10. Pair with GPS position from NMEA    │                │
+│   │  11. Query bathymetric chart at that spot│                │
+│   │  12. LOG IT ALL — JSON + human markdown  │                │
+│   └─────────────────────────────────────────┘                │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## Pipeline Detail
+### The Data Flow (What Goes Where)
 
-### Phase 1: Capture & Analysis
-
-The capture daemon (`capture.py`) runs a dual-cadence loop:
-
-| Mode | Interval | Output | Purpose |
-|------|----------|--------|---------|
-| **Sounder crop** (370×900) | 30 seconds | JSON analysis + anomaly log | Live bottom/fish reading |
-| **Full frame** (1920×1080) | 4 minutes | Screenshot + analysis | Permanent filmstrip record |
-| **On-demand** `--oneshot` | Captain asks | Full JSON to stdout | Answer questions |
-
-The sounder analyzer (`sounder_analyzer.py`) processes the cropped panel:
-
-1. **Palette detection** — identifies the blue→cyan→yellow→orange→red fishfinder palette
-2. **Background subtraction** — filters dark blue noise (avg RGB ~107 total)
-3. **Bottom detection** — finds the strongest horizontal return band, traces its contour
-4. **Depth calibration** — reads the depth scale numbers via Tesseract OCR
-5. **Fish return analysis** — counts pixels above threshold (180+ RGB total), computes density and depth range
-6. **Bottom type classification** — return intensity and texture → hard/medium/soft/mud
-7. **Thermocline detection** — horizontal bands of elevated return above the bottom
-
-### Phase 2: Bathymetric Contour Extraction
-
-The bathymetric preprocessing pipeline transforms raw survey data into agent-readable contours:
-
-**Step 1 — File scan** (`bathy_preprocess.py`):
-- Source: `71326.xyz` — 10.5 GB, 236,817,591 soundings, CSV format (long, lat, elevation)
-- Coverage: from Lake Superior (-94.7, 47.4) to Southeast Alaska (-133.7, 56.3), with global coverage
-- Grid: 0.1° cells for initial occupancy indexing
-- Stats: 7,923 occupied grid cells, depth range -1,646m to +120m
-- Key density bands (points within ±2.5m of target depth):
-  - 5 fm: 2.8M points | 48 fm: 7.2M points | 150 fm: 541K points
-
-**Step 2 — Grid building + contour extraction** (`bathy_contours.py`):
-- Region of interest: 54-59°N, 130-138°W (Southeast Alaska)
-- Grid: 5,000 × 8,000 cells at 0.001° (~100m), float32, 153 MB
-- 125,627,033 points in ROI → 1,872,930 non-empty cells (4.7% fill)
-- Marching squares algorithm extracts polylines at 9 depth intervals
-- Grid cache: `bathymetry/contours/elevation_grid.npy` — checkpoint-resumable
-
-**Output: 9 contour layers as GeoJSON FeatureCollections:**
-
-| File | Depth | Polylines | Vertices | Size |
-|------|-------|-----------|----------|------|
-| `contours_5fm.geojson` | 5 fm (anchor safe) | 170 | 2,360 | 0.1 MB |
-| `contours_10fm.geojson` | 10 fm | 404 | 7,077 | 0.3 MB |
-| `contours_20fm.geojson` | 20 fm | 755 | 17,685 | 0.6 MB |
-| `contours_30fm.geojson` | 30 fm | 1,151 | 28,319 | 1.0 MB |
-| `contours_48fm.geojson` | **48 fm (gear drag)** | **1,081** | **32,440** | **1.1 MB** |
-| `contours_60fm.geojson` | 60 fm | 979 | 29,900 | 1.0 MB |
-| `contours_80fm.geojson` | 80 fm | — | — | 0.7 MB |
-| `contours_100fm.geojson` | 100 fm | 472 | 14,164 | 0.5 MB |
-| `contours_150fm.geojson` | 150 fm | 231 | 6,576 | 0.2 MB |
-
-Total pipeline time: ~10 minutes (Phase 1: ~2,176s for 237M lines, Phase 2: ~597s for 9 depth intervals).
-
-### Phase 3: Anomaly Detection
-
-The anomaly logger (`anomaly_logger.py`) runs on every capture cycle:
-
-1. **Capture** → sounder reads bottom depth at current lat/lon
-2. **Query** → `contour_query.get_depth_fm(lat, lon)` returns charted depth from the numpy grid
-3. **Compare** → delta = sounder_fm - contour_fm
-4. **Log** → INSERT into SQLite `bathymetry_anomalies` table
-5. **Export** → QGIS-ready CSV + GeoJSON for map correction
-
-**Database schema:**
-
-```sql
-CREATE TABLE bathymetry_anomalies (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    ts          TEXT NOT NULL,
-    lat         REAL NOT NULL,
-    lon         REAL NOT NULL,
-    sog         REAL,
-    sounder_fm  REAL NOT NULL,
-    contour_fm  REAL,
-    delta_fm    REAL,
-    source      TEXT DEFAULT 'capture',
-    cruise      TEXT,
-    created_at  TEXT DEFAULT (datetime('now'))
-);
+```
+SOUNDER SCREEN (TZ Pro)
+        │
+        ▼
+SCREENSHOT (PowerShell GDI+ capture of DISPLAY6)
+        │
+        ▼
+CROP TO SOUNDER REGION (370×900 px — just the water column)
+        │
+        ▼
+OPENCV ANALYSIS
+        │
+        ├──▶ Palette detection (this display's blue→cyan→yellow→orange→red)
+        ├──▶ Background subtraction (filter the dark blue noise)
+        ├──▶ Bottom detection (strongest horizontal return band)
+        ├──▶ Depth scale OCR (Tesseract reads the numbers on the side)
+        ├──▶ Fish returns (pixels > 180 RGB total = target)
+        ├──▶ Thermoclines (horizontal bands above bottom)
+        └──▶ Bottom type (return texture + intensity → hard/medium/soft/mud)
+        │
+        ▼
+NMEA POSITION (from bridge, timestamp-matched)
+        │
+        ▼
+BATHYMETRIC QUERY (numpy grid, 0.001° resolution = ~100m)
+        │
+        ▼
+COMPARISON: sounder_depth - chart_depth = DELTA
+        │
+        ▼
+IF |delta| > 1 fm: LOG ANOMALY (SQLite + QGIS export)
+        │
+        ▼
+DAILY LOG: memory/observations/YYYY-MM-DD.jsonl
+        │
+        ▼
+YOU CAN QUERY IT ANYTIME
 ```
 
-**Sample anomaly (Ketchikan harbor, first test):**
+---
 
+## What You Get Out of It
+
+### 1. Daily Markdown Summary (Human-Readable)
+```
+# Echogram Capture 0800_5547.312N_13141.778W
+**Date:** July 18, 2026  **Time:** 08:00 AKDT
+
+## Vessel
+- Position: 55°47.312'N  131°41.778'W
+- SOG 1.59 kn  COG 209°
+
+## Analysis
+Bottom detected at 57.2 fm (high confidence). 
+10 thermal layers at 16.1, 26.1, 35.2 fm. 
+557 echo returns in LF band across 5 zones. 
+Vocabulary predicts: **chum**.
+Mid-water (20-40 fm) mean intensity 91.2/255, peak 255/255.
+**Largest return: 31.9 fm, 279,403 px², intensity 121.9**
+```
+
+### 2. Structured JSON (Machine-Readable, Searchable)
 ```json
 {
-  "lat": 55.78595,
-  "lon": -131.527017,
-  "sounder_fm": 53.2,
-  "contour_fm": 67.3,
-  "delta_fm": -14.1,
-  "source": "capture"
-}
-```
-
-A -14.1 fm delta means the sounder reads 14 fathoms shallower than the chart says. This is the kind of discrepancy the system surfaces — either the depth scale calibration is off, or the bottom has changed since the survey. Over time, patterns in these deltas become bathymetric corrections.
-
----
-
-## Contour Query Engine
-
-The contour query module (`contour_query.py`) provides fast depth lookups from the numpy grid:
-
-```python
-from contour_query import get_depth_fm, get_gear_clearance
-
-# Query any lat/lon within the ROI
-depth = get_depth_fm(55.3422, -131.6433)        # 67.3 fm
-
-# Get gear clearance relative to 48 fm contour
-gear = get_gear_clearance(55.7859, -131.527)    # 19.3 fm clearance
-
-# Find which contour bands cross near a position
-bands = get_contour_bands(55.3422, -131.6433)
-# → {10: ..., 20: ..., 30: ..., 48: ..., 60: ...}
-```
-
-The grid is cached in memory on first load (lazy initialization). Subsequent queries are O(1) — index into a numpy float32 array.
-
-**Hardware:** The 153 MB float32 grid (5,000 × 8,000 cells at 0.001° resolution) stays memory-mapped when inactive and loads into RAM on first query. Lookup takes < 1 µs.
-
----
-
-## The Fleet (Multi-Model Strategy)
-
-This system doesn't use a single AI model. The Captain runs a **fleet**:
-
-| Model | When to Use |
-|-------|-------------|
-| **Seed 2.0 Mini** | Creative brainstorming, wild ideas, flow state writing |
-| **Hermes 3 405B** | Big thinking, synthesis, philosophy, long-form writing |
-| **Nemotron 3 Ultra** | Heavy reasoning, reverse-actualization, engineering analysis |
-| **DeepSeek V4 Pro** | Premium smarts, architecture, product design, production code |
-| **DeepSeek V4 Flash** | Default — fast, capable, day-to-day operations |
-| **Claude Sonnet** | Code, nuanced understanding, alternative perspective |
-| **Kimi K2.5** | Code, reasoning, specialized decomposition |
-| **qwen3:4b (local)** | Fast local inference on Ollama, no GPU needed |
-
-**Captain's insight on model selection:** Maximum cognitive activation ≠ correctness. Hermes lights up 93% of its machinery and gets the wrong answer while Seed activates 5% and gets it right. Activation is metabolic rate, not signal. Route based on what the problem needs, not which model looks most impressive doing it.
-
----
-
-## NMEA Infrastructure
-
-The vessel's NMEA architecture is a carefully designed multi-consumer setup:
-
-```
-u-blox GPS (COM6 @ 4800 baud)
-    │
-    ▼
-nmea_bridge.py (shared-mode COM6)
-    │
-    ├── TCP :6006  →  hermitd (dashboard, ActiveTrack)
-    └── TCP :6007  →  TZ Pro (navigation position input)
-```
-
-**Critical design decisions:**
-- **Shared mode** — the bridge opens COM6 with `FILE_SHARE_READ | FILE_SHARE_WRITE`. Without this, TZ Pro can't read the GPS (pyserial defaults to exclusive mode).
-- **Dual-port broadcast** — the bridge serves both :6006 and :6007 from one COM6 read. This avoids virtual COM port drivers and lets any number of consumers connect.
-- **INVALID_HANDLE bug fix** — `ctypes.c_void_p(-1).value` returns unsigned 64-bit MAX on Python 3.13. Fixed by setting `CreateFileA.restype = ctypes.c_void_p`. Both `nmea_bridge.py` and `hermitd.py` were affected.
-
----
-
-## Sounder Palette
-
-Confirmed by the Captain through comparison with the live display:
-
-```
-Background:  dark navy blue      rgb(13, 31, 54)    ~98 total RGB
-Weak returns: soft mud, plankton 130-180 total RGB  (cyan)
-Medium:      fish, thermoclines  180-250 total RGB  (yellow-green)
-Strong:      hard bottom, dense  250+ total RGB     (orange-red)
-             schools
-```
-
-The key insight: in a blue palette, the background IS blue. Fish and bottom returns are warmer-colored (green/yellow/orange). Pure brightness thresholding catches too much noise. The analyzer uses channel-ratio heuristics tuned specifically for this palette on this display.
-
-Tesseract 5.4.0 is used for depth scale number OCR (AVX2/FMA/SSE4.1 support confirmed).
-
----
-
-## Files
-
-### Core Pipeline
-
-| File | Purpose |
-|------|---------|
-| `capture.py` | Background daemon — dual-cadence capture loop (30s / 4min) |
-| `sounder_analyzer.py` | OpenCV pixel analysis — palette, bottom, fish, thermoclines, depth |
-| `screenshot.py` | Screen capture via PowerShell + PIL region crops |
-| `screenshot.ps1` | PowerShell GDI+ script for DISPLAY6 capture |
-| `config.py` | Shared constants — crop regions, thresholds, palette, paths |
-| `logger.py` | Structured daily logging to JSONL + markdown summaries |
-| `agent.py` | On-demand interface — Captain asks about the chart |
-
-### Bathymetric Pipeline (Phases 2-3)
-
-| File | Purpose |
-|------|---------|
-| `bathy_preprocess.py` | Scan + index 237M soundings, build occupancy grid |
-| `bathy_contours.py` | Grid building + marching squares contour extraction |
-| `contour_query.py` | Fast depth lookup by lat/lon from numpy grid |
-| `anomaly_logger.py` | SQLite anomaly DB, QGIS/GeoJSON export, stats |
-
-### Architecture Documents
-
-| File | Purpose |
-|------|---------|
-| `v2_architecture.md` | Full v2 sensor pipeline architecture |
-| `zeroclaw_architecture.md` | ZeroClaw agent integration design (61 KB, 9 sections) |
-| `workshop_plan.md` | 3-session iterative build plan |
-| `ARCHITECTURE_REVIEW.md` | Architecture review notes |
-| `v2_architecture_nemotron.md` | Nemotron's engineering analysis |
-
----
-
-## Deployment Guide
-
-### Requirements
-
-- **OS:** Windows 11 (tested on F/V EILEEN)
-- **CPU:** Any x86-64 (tested on AMD Ryzen AI 9 HX 370)
-- **GPU:** Optional — RTX 4050 6GB for Florence-2 inference (planned)
-- **RAM:** 8 GB minimum, 32 GB recommended
-- **Storage:** 500 MB for code + 160 MB for contour grid + growing observation log
-- **Python:** 3.10+
-- **Tesseract:** 5.x (for depth scale OCR)
-- **NMEA:** COM port or TCP bridge providing lat/lon/SOG
-
-### Setup
-
-```powershell
-# Clone
-git clone https://github.com/SuperInstance/tzpro-agent.git
-cd tzpro-agent
-
-# Install Python dependencies
-pip install pillow numpy
-
-# Install Tesseract (if not present)
-# Download from https://github.com/UB-Mannheim/tesseract/wiki
-
-# Run the NMEA bridge (from hermit-crab repo)
-python nmea-bridge/nmea_bridge.py --port COM6 --baud 4800
-
-# Run a test capture
-python capture.py --oneshot
-
-# Build the contour grid (10 min, required for anomaly detection)
-python bathy_contours.py
-
-# Start the background daemon
-python capture.py
-```
-
----
-
-## Quick Start
-
-```bash
-# One-shot capture + analysis + anomaly check
-python capture.py --oneshot
-
-# Look up charted depth at any position
-python contour_query.py 55.3422 -131.6433
-# → Ketchikan harbor: 67.3 fm
-
-# Check anomaly database
-python anomaly_logger.py --stats
-# → Total: 2, avg magnitude: 7.31 fm
-
-# Export all anomalies > 1 fm delta as QGIS-ready CSV
-python anomaly_logger.py --export-csv --min-delta 1.0
-
-# Export as GeoJSON for ZeroClaw
-python anomaly_logger.py --export-geojson
-
-# Run full contour extraction (10 min, one-time setup)
-python bathy_contours.py
-
-# Check charted depth vs gear depth at any position
-python -c "from contour_query import get_gear_clearance; print(get_gear_clearance(55.7859, -131.527, 48))"
-# → {'charted_fm': 67.3, 'gear_fm': 48.0, 'clearance_fm': 19.3, 'status': 'clear', ...}
-
-# On-demand agent
-python agent.py --brief
-
-# Background daemon (Ctrl+C to stop)
-python capture.py
-```
-
----
-
-## Data Format
-
-### Observation Log (`memory/observations/YYYY-MM-DD.jsonl`)
-
-```json
-{
-  "ts": "2026-07-15T18:59:40+00:00",
-  "sounder": "tzpro_20260715_105941_sounder.png",
-  "position": {"lat": 55.785, "lon": -131.527},
-  "vessel": {"sog": 1.6, "cog": 265},
+  "ts": "2026-07-18T16:00:00+00:00",
+  "position": {"lat": 55.78853, "lon": -131.69630},
+  "vessel": {"sog": 1.59, "cog": 209},
   "sounder_analysis": {
-    "depth_fm": 53.2,
-    "pixel_y": 599,
+    "depth_fm": 57.2,
     "bottom_type": "soft_mud",
-    "confidence": "low",
     "fish_returns": {
-      "count": 3656,
-      "density_per_100kpx": 1097.9,
-      "avg_intensity": 133.2,
-      "depth_range": [0.0, 0.63],
-      "distribution": "very_dense"
+      "count": 557,
+      "density_per_100kpx": 1674.3,
+      "avg_intensity": 91.2,
+      "depth_range_fm": [20, 40],
+      "largest_blob": {"depth_fm": 31.9, "area_px": 279403, "intensity": 121.9}
     },
-    "thermoclines": [],
-    "signal_profile": {
-      "avg_color": "rgb(13,34,54)",
-      "signal_strength": 0.134,
-      "palette_dominance": "blue"
-    }
+    "thermoclines_fm": [16.1, 26.1, 35.2]
+  },
+  "chart_comparison": {
+    "charted_fm": 67.3,
+    "delta_fm": -10.1,
+    "anomaly_logged": true
   }
 }
 ```
 
-### Anomaly Database (`bathymetry/anomalies.db`)
-
+### 3. Anomaly Database (Chart Corrections)
 ```sql
-SELECT ts, lat, lon, sounder_fm, contour_fm, delta_fm, sog
-FROM bathymetry_anomalies
-WHERE abs(delta_fm) > 2.0
+-- Every spot where reality ≠ chart
+SELECT * FROM bathymetry_anomalies 
+WHERE abs(delta_fm) > 2.0 
 ORDER BY abs(delta_fm) DESC;
 ```
+| Lat | Lon | Sounder fm | Chart fm | Delta | Date |
+|-----|-----|------------|----------|-------|------|
+| 55.786 | -131.696 | 57.2 | 67.3 | -10.1 | 2026-07-18 |
+| 55.342 | -131.643 | 53.2 | 67.3 | -14.1 | 2026-07-15 |
 
-### QGIS Export (`bathymetry/qgis_corrections.csv`)
-
+### 4. QGIS-Ready Exports (For Your Chartplotter)
 ```csv
+# bathymetry/qgis_corrections.csv
 Longitude, Latitude, Depth
--131.527, 55.786, -97.3
+-131.696, 55.786, -97.3
+```
+Load into QGIS → overlay on your C-Map/Navionics → see exactly where the chart is wrong.
+
+---
+
+## Questions You Can Answer
+
+### "Where were the chum holding yesterday?"
+```bash
+python agent.py --brief "chum yesterday"
+# Or just grep the daily log:
+grep -i chum memory/observations/2026-07-18.jsonl
 ```
 
-### GeoJSON Export (`bathymetry/anomalies.geojson`)
+### "Show me every spot where the bottom's 5+ fm different from the chart"
+```bash
+python anomaly_logger.py --export-csv --min-delta 5.0
+# Opens in Excel/QGIS instantly
+```
 
-```json
-{
-  "type": "FeatureCollection",
-  "features": [{
-    "type": "Feature",
-    "geometry": {
-      "type": "Point",
-      "coordinates": [-131.527, 55.786]
-    },
-    "properties": {
-      "delta_fm": -14.1,
-      "ts": "2026-07-15T22:26:28+00:00",
-      "sounder_fm": 53.2,
-      "contour_fm": 67.3
-    }
-  }]
-}
+### "What's the charted depth at 55°30'N 132°00'W? Will my 48 fm gear hit bottom?"
+```bash
+python contour_query.py 55.5 -132.0
+# → 67.3 fm charted. You have 19.3 fm clearance. Safe.
+```
+
+### "Compare this spot to the same date last year"
+```bash
+# The daily logs are permanent. Just diff two files:
+diff memory/observations/2025-07-18.jsonl memory/observations/2026-07-18.jsonl
+# Or ask the agent:
+python agent.py "compare 55.78 -131.70 July 18 2025 vs 2026"
+```
+
+### "Export all my chum catches with sounder signatures for the season"
+```bash
+python catch_link.py --species chum --season 2026 --export-csv
+# Columns: date, time, lat, lon, hook#, species, size, sounder_depth, 
+#          fish_count, LF_intensity, HF_intensity, thermocline_depth, bottom_type
 ```
 
 ---
 
-## Phase Status
+## Hardware You Need (Off-the-Shelf)
 
-| Phase | Description | Status | Date |
-|-------|-------------|--------|------|
-| **Phase 1** | Sounder capture + analysis pipeline | ✅ Complete | 2026-07-15 |
-| **Phase 2** | Bathymetric contour extraction (9 layers) | ✅ Complete | 2026-07-15 |
-| **Phase 3** | Anomaly logger — real vs charted depth | ✅ Complete | 2026-07-15 |
-| **Phase 4** | ZeroClaw agent loop — alert engine + NL queries | 🔧 In design | — |
-| **Phase 5** | Florence-2 VL model on sounder images (GPU) | 📋 Planned | — |
-| **Phase 6** | DAW dashboard — web-based replay + query | 📋 Planned | — |
-| **Phase 7** | Catch correlation — catches ↔ bottom type | 📋 Planned | — |
+| Component | What We Use | Approx Cost | Notes |
+|-----------|-------------|-------------|-------|
+| **Laptop/PC** | AMD Ryzen AI 9 HX 370, 32 GB RAM, RTX 4050 | $1,500 | Any Win11 box works; GPU only for future VL models |
+| **GPS** | u-blox NEO-M8N (or any NMEA 0183 source) | $40 | COM6 at 4800 baud on Eileen |
+| **NMEA Bridge** | USB-Serial adapter + our `nmea_bridge.py` | $25 | Shared-mode critical — lets TZ Pro AND agent read GPS |
+| **Sounder** | Furuno TZ Pro (you already have this) | — | Dual-band 50/200 kHz |
+| **Display** | Dedicated monitor for TZ Pro (DISPLAY6) | — | Agent captures this specific display |
+| **Storage** | 500 GB SSD minimum | $50 | Growing logs + 160 MB contour grid |
+
+**Total new hardware:** ~$1,600 if starting from scratch. **Most boats already have the GPS, sounder, and a laptop.**
 
 ---
 
-## Philosophical Anchors
+## Installation (The "Wire It Yourself" Way)
 
-This project is guided by seven writings from the Captain. They define what gets built and why:
+### 1. Get the Code
+```powershell
+git clone https://github.com/SuperInstance/tzpro-agent.git
+cd tzpro-agent
+```
 
-1. **The Hundred Hooks** — Every hook is a measurement. The pattern across all hooks = the intelligence. The chart is not the song. The song is what happens when you pull the hooks.
+### 2. Install Python Stuff
+```powershell
+pip install pillow numpy
+# Tesseract for OCR (download from github.com/UB-Mannheim/tesseract/wiki)
+```
 
-2. **The Person You Forgot Was There** — The monitor engineer. The depth sounder that made itself unnecessary. The highest form of any tool: it disappears.
+### 3. Run the NMEA Bridge (from hermit-crab repo)
+```powershell
+# This shares your GPS with BOTH TZ Pro and the agent
+cd ..\hermit-crab\nmea-bridge
+python nmea_bridge.py --port COM6 --baud 4800
+# Leave this running. It bridges COM6 → TCP :6006 (agent) + :6007 (TZ Pro)
+```
 
-3. **Charts Not Maps** — A map is static. A chart is alive, updated by every pass. FishingLog.ai is a chart. It's never finished.
+### 4. Build the Bathymetric Grid (One Time, ~10 Minutes)
+```powershell
+cd ..\tzpro-agent
+python bathy_contours.py
+# Downloads/processes 10.5 GB NOAA soundings → 153 MB grid + 9 contour layers
+# Only needs doing once per region (SE Alaska built in)
+```
 
-4. **Ebb and Flow** — Compute has tides. Don't fight them. Surf them. GPU contention is not a bug — it's the ebb and flow.
+### 5. Test a Single Capture
+```powershell
+python capture.py --oneshot
+# Should print JSON analysis to screen + save PNG + markdown
+```
 
-5. **Cognitive Photosynthesis** — The system is not a collection of parts but an orchestrated whole. Each model, each sensor, each pipeline contributes to a system that is more than the sum.
+### 6. Start the Background Daemon
+```powershell
+python capture.py
+# Runs forever: 30s sounder crops + 4min full frames
+# Ctrl+C to stop
+```
 
-6. **The Reflection You Mistook for Depth** — Maximum cognitive activation ≠ correctness. Route to the right model for the job, not the one that looks most impressive doing it.
+### 7. Make It Auto-Start at Boot (Windows Task Scheduler)
+- Open Task Scheduler → Create Basic Task
+- Trigger: "At log on"
+- Action: `powershell.exe -Command "cd C:\path\to\tzpro-agent; python capture.py"`
+- Run whether user logged on or not (for headless operation)
 
-7. **Turbo Nemotron** — The invariant concept lives in the repo. The repo is permanent memory. Narrow scope, conservation budget, sandboxed not because weak — because focused.
+---
 
-**The invariants (things that must never change):**
+## Daily Workflow (What You Actually Do)
 
-1. **Open source.** Everything. Hardware guides, wiring templates, agent configs.
+### Morning (Before Haul)
+- Nothing. Agent's already running if you set up auto-start.
+- Verify: dashboard at `http://localhost:8654` shows green lights.
+
+### During the Day
+- Fish. The agent watches the sounder.
+- **Optional:** Say "hook 12 chum 60cm" into your phone when something notable comes up.
+  - Future version will auto-transcribe and label the sounder frame.
+
+### Evening / At the Dock
+```powershell
+# Quick health check
+python agent.py --brief
+# "Last 24h: 1,240 captures, 47 anomalies, 3 chum windows, 0 errors"
+
+# Export corrections for your chartplotter
+python anomaly_logger.py --export-csv --min-delta 1.0
+# Opens bathymetry/qgis_corrections.csv — load into QGIS
+
+# Or just ask questions
+python agent.py "where was the best chum yesterday"
+python agent.py "show me all spots > 5 fm off chart this week"
+```
+
+### End of Season
+```
+Your data directory now has:
+memory/observations/2026-07-15.jsonl
+memory/observations/2026-07-16.jsonl
+...
+memory/observations/2026-10-15.jsonl
+
+That's your season. Searchable. Permanent. Yours.
+```
+
+---
+
+## The Bigger Picture: Why This Exists
+
+### The CoCapn Philosophy
+This isn't a product you buy. It's a **system you build and own**.
+
+- **Open source:** All code, all configs, all wiring guides. Free forever.
+- **You're customer zero:** If it works on Eileen, it works for the fleet.
+- **The installer is a human-in-the-loop:** You push the buttons the agent tells you to push. You read back the numbers it asks for. You learn your own boat's wiring.
+- **The repo is the seed:** Hardware changes. Models change. The code persists.
+
+### The Hierarchy on Board
+
+```
+CAPTAIN (Picard) — Casey
+  │  Sets the mission. Makes the calls. Owns the outcomes.
+  ▼
+RIKER (Operations Officer) — This AI agent
+  │  Maintains the machine. Integrates new sensors. 
+  │  Decides which copilots to deploy. Sees the whole boat.
+  ▼
+TZ PRO AGENT (Tactical Copilot) — THIS REPO
+  │  Blinders on. One job: watch the sounder. Perfect focus.
+  │  Doesn't know about fuel, autopilot, crew schedule.
+  ▼
+FUTURE COPILOTS (Planned)
+  ├── Autopilot Copilot — watches rudder/compass, learns to steer gentler
+  ├── Engine Room Copilot — temps, fuel, RPM, vibration
+  └── Catch Log Copilot — species, counts, position, rigged
+```
+
+**Key insight:** A copilot is a racehorse with blinders. One task, perfect focus. Riker is not a copilot — Riker is closer to the Captain than the crew. Riker connects the copilots, rewires the architecture, sees the whole machine.
+
+---
+
+## What's Coming (The Roadmap)
+
+| Phase | What | Status | Why It Matters |
+|-------|------|--------|----------------|
+| **1-3** | Sounder capture + bathymetry + anomalies | ✅ Done | Foundation — you have this now |
+| **4** | ZeroClaw agent loop — natural language queries | 🔧 In design | "Where were chum holding last Tuesday?" |
+| **5** | Florence-2 vision model on sounder images | 📋 Planned | AI "reads" the echogram like a human |
+| **6** | DAW dashboard — web replay + query | 📋 Planned | Scrub through the day like a video |
+| **7** | Catch ↔ sounder correlation | 📋 Planned | "This sounder signature = this species/size" |
+| **8** | Deck camera → sounder correlation | 📋 Planned | Camera sees the hook, sounder sees the depth, link them |
+
+### The End Game
+**A system that deploys itself onto any boat.** Interview the captain. Inventory the hardware. Search the web for missing pieces. Write the wiring guide. Train the copilots. Improve season over season.
+
+**50 boats in one bay. One industry.** If it works for one fisherman, it works for all of them. From Ketchikan, you build a career installing systems without leaving your dock. But that's not the goal. The goal is to build something that installs itself.
+
+---
+
+## Troubleshooting (Common Gotchas)
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| "No GPS data" | NMEA bridge not running | Start `nmea_bridge.py --port COM6 --baud 4800` |
+| "TZ Pro loses GPS" | Bridge opened COM6 exclusive mode | Our bridge uses `FILE_SHARE_READ|WRITE` — must use our `nmea_bridge.py` |
+| "Depth readings look wrong" | Palette detection failed | Check `config.py` — palette tuned for YOUR display |
+| "Chart query returns None" | Outside contour grid ROI | Grid covers 54-59°N, 130-138°W. Expand in `bathy_contours.py` |
+| "Anomalies all huge deltas" | Depth scale OCR misread | Verify Tesseract installed; check sounder range setting (60 fm fixed) |
+| "Two analyzer.py processes" | Duplicate start | Check Task Scheduler — only one `capture.py` should run |
+| "Permission denied writing captures" | Windows folder permissions | Run PowerShell as Admin once, or fix folder ACLs |
+
+---
+
+## File Map (What's Where)
+
+```
+tzpro-agent/
+├── capture.py              # Main daemon — run this
+├── capture_v3.py           # Newer capture with PNG+JSON output
+├── capture_tray.py         # System tray icon + controls
+├── sounder_analyzer.py     # OpenCV brain — reads the sounder
+├── screenshot.py / .ps1    # Screen capture (PowerShell GDI+)
+├── config.py               # YOUR SETTINGS — crop regions, thresholds, paths
+├── contour_query.py        # "How deep is it here?" — fast numpy lookup
+├── bathy_contours.py       # Build the grid (run once)
+├── bathy_preprocess.py     # Scan NOAA soundings (run once)
+├── anomaly_logger.py       # SQLite + QGIS export for chart diffs
+├── agent.py                # Ask questions in plain English
+├── agent_loop.py           # Background reasoning loop
+├── catch_link.py           # Link catches to sounder data
+├── catch_patterns.py       # Species signatures from sounder
+├── memory/                 # YOUR DATA — never committed to git
+│   ├── observations/       # Daily JSONL logs (permanent record)
+│   ├── daily/              # Markdown summaries
+│   └── index/              # Search index
+├── bathymetry/             # Chart data (160 MB grid + contours)
+│   ├── contours/           # 9 GeoJSON layers (5, 10, 20, 30, 48, 60, 80, 100, 150 fm)
+│   ├── anomalies.db        # SQLite — reality vs chart
+│   └── qgis_corrections.csv # Load this into QGIS
+├── captures/v3/            # PNG screenshots organized by date/position
+├   └── 2026-07-18_5546.779N_13141.210W/
+│       ├── 0800_5547.312N_13141.778W.png
+│       ├── 0800_5547.312N_13141.778W.json
+│       └── 0800_5547.312N_13141.778W.md
+└── README.md               # This file
+```
+
+---
+
+## Philosophy (The Invariants)
+
+These never change. They're the constitution.
+
+1. **Open source. Everything.** Hardware guides, wiring templates, agent configs.
 2. **Captain is customer zero.** Everything that works for him works for the fleet.
 3. **The sounder is the only thing worth reading off the screen.** Lat/lon/SOG/COG come from NMEA.
 4. **Copilots wear blinders.** One task, perfect focus. They don't know they're part of a larger system.
@@ -575,27 +504,36 @@ This project is guided by seven writings from the Captain. They define what gets
 
 ---
 
-## Long-term Vision
+## Captain's Writings (The "Why")
+Seven documents that define this project. Read them to understand the soul:
 
-**The recursion:**
-The next generation of this agent should be able to deploy itself onto any boat. Interview the captain. Figure out what hardware exists. Search the internet for what's missing. Write the wiring guide. Train the copilots. Improve season over season.
-
-**The scale:**
-50 boats in one bay. One industry. If it works for one fisherman, it works for all of them. From Ketchikan, you can build a career installing systems without leaving your dock. But that's not the goal. The goal is to build something that installs itself.
-
-**The data:**
-Every fishing day is a data contribution to next season. Every pattern spotted is a proof point. Every conversation with the Captain is a product design session. Over time, the system learns to read this water the way the Captain learned to read it — by watching, season after season, until the pattern is so familiar that the dashboard becomes invisible and the conversation between Captain and boat is direct, unmediated.
-
----
-
-## Repositories
-
-| Repo | URL | Branch | Contents |
-|------|-----|--------|----------|
-| **tzpro-agent** | [SuperInstance/tzpro-agent](https://github.com/SuperInstance/tzpro-agent) | master | This repo — first sensor node |
-| **hermit-crab** | [SuperInstance/hermit-crab](https://github.com/SuperInstance/hermit-crab) | memory-system | NMEA bridge, dashboard, ActiveTrack, founding documents |
+1. **The Hundred Hooks** — Every hook is a measurement. The pattern = the intelligence.
+2. **The Person You Forgot Was There** — The highest form of any tool: it disappears.
+3. **Charts Not Maps** — A map is static. A chart is alive, updated by every pass.
+4. **Ebb and Flow** — Compute has tides. Don't fight them. Surf them.
+5. **Cognitive Photosynthesis** — The system is an orchestrated whole, not a pile of parts.
+6. **The Reflection You Mistook for Depth** — Maximum activation ≠ correctness. Right tool for the job.
+7. **Turbo Nemotron** — The invariant concept lives in the repo. Narrow scope, conservation budget.
 
 ---
 
-*Part of the CoCapn ecosystem — [CoCapn.com](https://CoCapn.com) / [ActiveLedger.ai](https://ActiveLedger.ai) / [FishingLog.ai](https://FishingLog.ai)*
-*Riker, Operations Officer, F/V EILEEN, Ketchikan Alaska*
+## Get Help / Contribute
+
+- **Issues:** GitHub Issues on `SuperInstance/tzpro-agent`
+- **Discussions:** GitHub Discussions — ask questions, share setups
+- **Wiring help:** `hermit-crab` repo has NMEA bridge, dashboard, schematics
+- **Captain's log:** `FISHINGLOG_FOUNDING.md` in hermit-crab — the founding transcript
+
+---
+
+## License
+
+**MIT** — Use it, modify it, sell installs of it, put it on 100 boats. Just keep the license file.
+
+---
+
+**Part of the CoCapn Ecosystem**  
+🌐 [CoCapn.com](https://CoCapn.com) | 📊 [ActiveLedger.ai](https://ActiveLedger.ai) | 🎣 [FishingLog.ai](https://FishingLog.ai)
+
+*Riker, Operations Officer, F/V EILEEN, Ketchikan Alaska*  
+*First cast: July 15, 2026, 10:59 AKDT*

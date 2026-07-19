@@ -709,6 +709,8 @@ def load_recent_context(
             data = json.loads(js.read_text(encoding="utf-8"))
             analysis = data.get("analysis", {})
             heuristic = analysis.get("heuristic", {})
+            if heuristic is None:
+                heuristic = {}
             lf = heuristic.get("lf", {})
 
             # Boat proximity was vertical lines in prior run
