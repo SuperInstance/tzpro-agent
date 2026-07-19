@@ -1,8 +1,11 @@
 {
   "ok": true,
-  "rc": 0,
-  "out": "0ccc4f87 analyzer intelligence v2: school state, catch patterns, multi-frame tracking\n230c5741 integration tests verified\n32be026f offline llm with template+markov+gemma modes\ncead1a20 tool rescue scripts + working tool server\n795383d6 integrate all modules into live pipeline\n",
-  "err": "",
-  "cmd": "git log --oneline -5",
-  "cwd": "C:\\Users\\casey\\.openclaw\\workspace\\tzpro-agent"
+  "steps": [
+    "[OK] git add -A",
+    "  stderr: warning: in the working copy of 'analyzer.py', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'stipes.py', LF will be replaced by CRLF the next time Git touches it",
+    "[OK] git commit -m stipes graduated memory layer",
+    "  stdout: [master 86662e3d] stipes graduated memory layer\n 9 files changed, 932 insertions(+), 4 deletions(-)\n create mode 100644 .consensus_state.json\n create mode 100644 .consensus_upgrade_state.json\n create mode 100644 stipes.py",
+    "[OK] git push",
+    "  stderr: To https://github.com/SuperInstance/tzpro-agent.git\n   98779dab..86662e3d  master -> master"
+  ]
 }

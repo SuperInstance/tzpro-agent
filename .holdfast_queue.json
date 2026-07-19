@@ -1,0 +1,16 @@
+[
+  {
+    "entry": {
+      "graduated_at": 1784420706.7364278,
+      "kind": "capture",
+      "content": {
+        "species": "chum",
+        "depth_fm": 35
+      },
+      "count": 10,
+      "last_accessed": 1784421699.9035091
+    },
+    "vitality": 1.0,
+    "queued_at": 1784421699.903966
+  }
+]
