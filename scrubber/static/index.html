@@ -1,0 +1,1279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TZPro Day Scrubber</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2a2a2a;
+            --bg-tertiary: #3a3a3a;
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --accent: #00bcd4;
+            --accent-dim: rgba(0, 188, 212, 0.3);
+            --machine-event: #4caf50;
+            --human-event: #ff9800;
+            --danger: #f44336;
+            --success: #4caf50;
+            --font-size-body: 18px;
+            --font-size-hud: 20px;
+            --font-size-large: 24px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: var(--font-size-body);
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* HUD Bar - 48px */
+        #hud {
+            height: 48px;
+            background: var(--bg-secondary);
+            border-bottom: 2px solid var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 16px;
+            flex-shrink: 0;
+        }
+
+        .hud-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .hud-label {
+            color: var(--text-secondary);
+            font-size: var(--font-size-hud);
+            min-width: 80px;
+        }
+
+        .hud-value {
+            font-weight: 600;
+            font-size: var(--font-size-hud);
+            min-width: 100px;
+        }
+
+        .hud-divider {
+            width: 2px;
+            height: 32px;
+            background: var(--bg-tertiary);
+        }
+
+        /* Transport Controls - ≥64px */
+        #transport {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+        }
+
+        .btn-transport {
+            width: 64px;
+            height: 40px;
+            background: var(--bg-tertiary);
+            border: 2px solid var(--accent);
+            color: var(--text-primary);
+            font-size: 24px;
+            cursor: pointer;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-transport:hover {
+            background: var(--accent-dim);
+        }
+
+        .btn-transport:active {
+            background: var(--accent);
+        }
+
+        #playback-presets {
+            display: flex;
+            gap: 4px;
+            margin-left: 8px;
+        }
+
+        .btn-preset {
+            width: 48px;
+            height: 36px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--text-secondary);
+            color: var(--text-primary);
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .btn-preset.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #000;
+        }
+
+        /* Frame Pane - ~60% height */
+        #frame-pane {
+            flex: 1;
+            position: relative;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        #echogram-container {
+            position: relative;
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        #echogram {
+            display: block;
+            max-width: 100%;
+            max-height: calc(100vh - 48px - 200px);
+            filter: grayscale(100%) opacity(0.7);
+            object-fit: contain;
+        }
+
+        #overlay-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        #gps-track {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 40px;
+            background: linear-gradient(to top, rgba(0, 188, 212, 0.2), transparent);
+            pointer-events: none;
+        }
+
+        #highlight-caption {
+            position: absolute;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid var(--accent);
+            padding: 12px 24px;
+            font-size: var(--font-size-large);
+            font-weight: 600;
+            border-radius: 8px;
+            white-space: nowrap;
+            display: none;
+        }
+
+        #highlight-caption.visible {
+            display: block;
+        }
+
+        /* Layer Controls */
+        #layer-controls {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 12px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .slider-row label {
+            min-width: 80px;
+            font-size: 16px;
+        }
+
+        input[type="range"] {
+            width: 120px;
+            height: 8px;
+            -webkit-appearance: none;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            background: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        #preset-chips {
+            display: flex;
+            gap: 8px;
+        }
+
+        .chip {
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--text-secondary);
+            color: var(--text-primary);
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 4px;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .chip.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #000;
+            font-weight: 600;
+        }
+
+        /* Timeline - bottom third */
+        #timeline-container {
+            height: 200px;
+            background: var(--bg-secondary);
+            border-top: 2px solid var(--bg-tertiary);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        #day-overview {
+            height: 40px;
+            background: var(--bg-tertiary);
+            position: relative;
+            border-bottom: 1px solid var(--accent-dim);
+        }
+
+        #zoomed-timeline {
+            flex: 1;
+            position: relative;
+        }
+
+        #timeline-canvas {
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+
+        #timeline-canvas:active {
+            cursor: grabbing;
+        }
+
+        #event-tracks {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .event-marker {
+            position: absolute;
+            width: 3px;
+            height: 12px;
+            border-radius: 1px;
+        }
+
+        .event-marker.machine {
+            background: var(--machine-event);
+        }
+
+        .event-marker.human {
+            background: var(--human-event);
+        }
+
+        .event-cluster {
+            position: absolute;
+            height: 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--text-secondary);
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 4px;
+            border-radius: 2px;
+        }
+
+        #cursor-line {
+            position: absolute;
+            width: 2px;
+            height: 100%;
+            background: var(--accent);
+            left: 50%;
+            pointer-events: none;
+        }
+
+        #cursor-time {
+            position: absolute;
+            top: -24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--accent);
+            color: #000;
+            padding: 2px 8px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 2px;
+            white-space: nowrap;
+        }
+
+        /* Rate indicator for variable-rate drag */
+        #rate-indicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid var(--accent);
+            padding: 16px 32px;
+            font-size: 32px;
+            font-weight: 600;
+            border-radius: 8px;
+            display: none;
+            z-index: 1000;
+        }
+
+        #rate-indicator.visible {
+            display: block;
+        }
+
+        /* Loading state */
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            z-index: 2000;
+        }
+
+        #loading.hidden {
+            display: none;
+        }
+
+        /* Empty state */
+        #empty-state {
+            position: absolute;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading screen -->
+    <div id="loading">Loading...</div>
+
+    <!-- HUD Bar -->
+    <div id="hud">
+        <div class="hud-group">
+            <span class="hud-label">Date</span>
+            <span class="hud-value" id="hud-date">--</span>
+        </div>
+        <div class="hud-divider"></div>
+        <div class="hud-group">
+            <span class="hud-label">Time</span>
+            <span class="hud-value" id="hud-time">--:--:--</span>
+        </div>
+        <div class="hud-divider"></div>
+        <div class="hud-group">
+            <span class="hud-label">Position</span>
+            <span class="hud-value" id="hud-position">-- --</span>
+        </div>
+        <div class="hud-divider"></div>
+        <div class="hud-group">
+            <span class="hud-label">SOG</span>
+            <span class="hud-value" id="hud-sog">-- kt</span>
+        </div>
+        <div class="hud-group">
+            <span class="hud-label">COG</span>
+            <span class="hud-value" id="hud-cog">--°</span>
+        </div>
+
+        <div id="transport">
+            <button class="btn-transport" id="btn-prev" title="Previous frame [←]">⏪</button>
+            <button class="btn-transport" id="btn-play" title="Play/Pause [Space]">⏯</button>
+            <button class="btn-transport" id="btn-next" title="Next frame [→]">⏩</button>
+            <div id="playback-presets">
+                <button class="btn-preset" data-speed="1">1×</button>
+                <button class="btn-preset active" data-speed="2">2×</button>
+                <button class="btn-preset" data-speed="10">10×</button>
+            </div>
+            <button class="btn-transport" id="btn-highlight" title="Jump to highlight [H]">★</button>
+        </div>
+    </div>
+
+    <!-- Frame Pane -->
+    <div id="frame-pane">
+        <div id="empty-state" class="hidden">
+            <p>No echogram data for this day</p>
+        </div>
+        <div id="echogram-container">
+            <img id="echogram" src="" alt="Echogram" style="display: none;">
+            <canvas id="overlay-layer"></canvas>
+        </div>
+        <canvas id="gps-track"></canvas>
+        <div id="highlight-caption"></div>
+
+        <div id="layer-controls">
+            <div id="preset-chips">
+                <div class="chip" data-preset="minimal">Minimal</div>
+                <div class="chip active" data-preset="standard">Standard</div>
+                <div class="chip" data-preset="detailed">Detailed</div>
+            </div>
+            <div class="slider-row">
+                <label>Overlay</label>
+                <input type="range" id="overlay-opacity" min="0" max="100" value="70">
+            </div>
+            <div class="slider-row">
+                <label>Track</label>
+                <input type="range" id="track-opacity" min="0" max="100" value="60">
+            </div>
+        </div>
+    </div>
+
+    <!-- Timeline -->
+    <div id="timeline-container">
+        <div id="day-overview">
+            <canvas id="overview-canvas"></canvas>
+        </div>
+        <div id="zoomed-timeline">
+            <canvas id="timeline-canvas"></canvas>
+            <div id="cursor-line">
+                <div id="cursor-time">12:00:00</div>
+            </div>
+            <div id="event-tracks"></div>
+        </div>
+    </div>
+
+    <!-- Rate indicator -->
+    <div id="rate-indicator">12h</div>
+
+    <script>
+        // ============================================================================
+        // Configuration
+        // ============================================================================
+        const CONFIG = {
+            apiBase: '',
+            touchThreshold: 48,  // Minimum touch target size
+            dragRateThresholds: [
+                { offset: 0, rate: 86400000, label: '12h' },     // Half day
+                { offset: 50, rate: 3600000, label: '1h' },      // 1 hour
+                { offset: 100, rate: 600000, label: '10min' },   // 10 minutes
+                { offset: 150, rate: 1000, label: 'frame' }      // Frame-by-frame
+            ],
+            zoomWindowMs: 3600000,  // Default 1-hour zoom window
+            minZoomWindowMs: 60000,  // 1 minute minimum
+            maxZoomWindowMs: 86400000,  // Full day
+        };
+
+        // ============================================================================
+        // State Management (localStorage-persisted)
+        // ============================================================================
+        const DEFAULT_STATE = {
+            currentDate: new Date().toISOString().split('T')[0],
+            cursorTime: null,
+            layerOpacity: 70,
+            trackOpacity: 60,
+            activePreset: 'standard',
+            playbackSpeed: 2,
+            zoomWindowMs: CONFIG.zoomWindowMs
+        };
+
+        let state = loadState();
+        let frames = [];
+        let records = [];
+        let isPlaying = false;
+        let playbackInterval = null;
+        let highlight = null;
+
+        // ============================================================================
+        // DOM Elements
+        // ============================================================================
+        const els = {
+            loading: document.getElementById('loading'),
+            echogram: document.getElementById('echogram'),
+            overlayCanvas: document.getElementById('overlay-layer'),
+            gpsTrackCanvas: document.getElementById('gps-track'),
+            timelineCanvas: document.getElementById('timeline-canvas'),
+            overviewCanvas: document.getElementById('overview-canvas'),
+            cursorLine: document.getElementById('cursor-line'),
+            cursorTime: document.getElementById('cursor-time'),
+            highlightCaption: document.getElementById('highlight-caption'),
+            rateIndicator: document.getElementById('rate-indicator'),
+            hudDate: document.getElementById('hud-date'),
+            hudTime: document.getElementById('hud-time'),
+            hudPosition: document.getElementById('hud-position'),
+            hudSog: document.getElementById('hud-sog'),
+            hudCog: document.getElementById('hud-cog'),
+            eventTracks: document.getElementById('event-tracks'),
+            emptyState: document.getElementById('empty-state'),
+            btnPlay: document.getElementById('btn-play'),
+            btnPrev: document.getElementById('btn-prev'),
+            btnNext: document.getElementById('btn-next'),
+            btnHighlight: document.getElementById('btn-highlight'),
+            presetChips: document.querySelectorAll('.chip'),
+            overlayOpacity: document.getElementById('overlay-opacity'),
+            trackOpacity: document.getElementById('track-opacity'),
+            playbackPresets: document.querySelectorAll('.btn-preset'),
+        };
+
+        // ============================================================================
+        // Utility Functions
+        // ============================================================================
+        function loadState() {
+            const saved = localStorage.getItem('scrubberState');
+            return { ...DEFAULT_STATE, ...JSON.parse(saved || '{}') };
+        }
+
+        function saveState() {
+            localStorage.setItem('scrubberState', JSON.stringify(state));
+        }
+
+        function formatTime(ms) {
+            const date = new Date(ms);
+            return date.toISOString().substr(11, 8);
+        }
+
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        }
+
+        function formatLatLon(lat, lon) {
+            if (lat == null || lon == null) return '-- --';
+            const latDir = lat >= 0 ? 'N' : 'S';
+            const lonDir = lon >= 0 ? 'E' : 'W';
+            const latAbs = Math.abs(lat);
+            const lonAbs = Math.abs(lon);
+            const latDeg = Math.floor(latAbs);
+            const lonDeg = Math.floor(lonAbs);
+            const latMin = (latAbs - latDeg) * 60;
+            const lonMin = (lonAbs - lonDeg) * 60;
+            return `${latDeg}°${latMin.toFixed(1)}′${latDir} ${lonDeg}°${lonMin.toFixed(1)}′${lonDir}`;
+        }
+
+        function findFrameAtTime(ts) {
+            if (!frames.length) return null;
+            // Find closest frame
+            let closest = frames[0];
+            let minDiff = Math.abs(frames[0].ts_utc - ts);
+            for (const frame of frames) {
+                const diff = Math.abs(frame.ts_utc - ts);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closest = frame;
+                }
+            }
+            return closest;
+        }
+
+        // ============================================================================
+        // API Functions
+        // ============================================================================
+        async function fetchDayData(date) {
+            const response = await fetch(`${CONFIG.apiBase}/api/day/${date}`);
+            if (!response.ok) {
+                if (response.status === 404) {
+                    return null;
+                }
+                throw new Error(`Failed to fetch day data: ${response.statusText}`);
+            }
+            return await response.json();
+        }
+
+        async function fetchBlob(sha256) {
+            const response = await fetch(`${CONFIG.apiBase}/api/blob/${sha256}`);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch blob: ${response.statusText}`);
+            }
+            return response.blob();
+        }
+
+        async function fetchHighlight(date) {
+            const response = await fetch(`${CONFIG.apiBase}/api/day/${date}/highlight`);
+            if (!response.ok) {
+                return null;
+            }
+            return await response.json();
+        }
+
+        // ============================================================================
+        // Rendering Functions
+        // ============================================================================
+        function updateHUD(frame) {
+            if (!frame) {
+                els.hudTime.textContent = '--:--:--';
+                els.hudPosition.textContent = '-- --';
+                els.hudSog.textContent = '-- kt';
+                els.hudCog.textContent = '--°';
+                return;
+            }
+
+            els.hudTime.textContent = formatTime(frame.ts_utc);
+            els.hudPosition.textContent = formatLatLon(frame.lat, frame.lon);
+            els.hudSog.textContent = frame.sog ? `${frame.sog.toFixed(1)} kt` : '-- kt';
+            els.hudCog.textContent = frame.cog ? `${Math.round(frame.cog)}°` : '--°';
+        }
+
+        async function loadEchogram(frame) {
+            if (!frame || !frame.sha256) {
+                els.echogram.style.display = 'none';
+                els.emptyState.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const blob = await fetchBlob(frame.sha256);
+                const url = URL.createObjectURL(blob);
+                els.echogram.src = url;
+                els.echogram.style.display = 'block';
+                els.emptyState.classList.add('hidden');
+            } catch (e) {
+                console.error('Failed to load echogram:', e);
+                els.echogram.style.display = 'none';
+                els.emptyState.classList.remove('hidden');
+            }
+        }
+
+        function drawOverlay(frame) {
+            const canvas = els.overlayCanvas;
+            const ctx = canvas.getContext('2d');
+
+            // Match size to echogram
+            const rect = els.echogram.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (!frame) return;
+
+            // Find record for this frame
+            const record = records.find(r => r.frame_id === frame.frame_id);
+            if (!record) return;
+
+            try {
+                const data = JSON.parse(record.record_json);
+                const opacity = state.layerOpacity / 100;
+
+                ctx.strokeStyle = `rgba(0, 188, 212, ${opacity})`;
+                ctx.fillStyle = `rgba(0, 188, 212, ${opacity * 0.3})`;
+                ctx.lineWidth = 2;
+
+                // Draw schools
+                if (data.schools && data.schools.length) {
+                    for (const school of data.schools) {
+                        const y = (school.depth_fm / 100) * canvas.height;
+                        ctx.beginPath();
+                        ctx.arc(canvas.width / 2, canvas.height - y, 20, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.stroke();
+                    }
+                }
+
+                // Draw bottom
+                if (data.bottom) {
+                    ctx.strokeStyle = `rgba(255, 152, 0, ${opacity})`;
+                    ctx.beginPath();
+                    const y = canvas.height - (data.bottom.depth_fm / 100) * canvas.height;
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(canvas.width, y);
+                    ctx.stroke();
+                }
+            } catch (e) {
+                console.error('Failed to draw overlay:', e);
+            }
+        }
+
+        function drawTimeline() {
+            const canvas = els.timelineCanvas;
+            const ctx = canvas.getContext('2d');
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+
+            if (!frames.length) {
+                ctx.fillStyle = '#333';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                return;
+            }
+
+            const startMs = frames[0].ts_utc;
+            const endMs = frames[frames.length - 1].ts_utc;
+            const totalMs = endMs - startMs;
+
+            // Clear
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw tick marks every 5 minutes
+            ctx.fillStyle = '#444';
+            for (let t = startMs; t <= endMs; t += 300000) {
+                const x = ((t - startMs) / totalMs) * canvas.width;
+                ctx.fillRect(x, 0, 1, canvas.height);
+            }
+
+            // Draw cursor
+            if (state.cursorTime) {
+                const cursorX = ((state.cursorTime - startMs) / totalMs) * canvas.width;
+                ctx.fillStyle = '#00bcd4';
+                ctx.fillRect(cursorX, 0, 2, canvas.height);
+                els.cursorLine.style.left = `${cursorX}px`;
+                els.cursorTime.textContent = formatTime(state.cursorTime);
+            }
+
+            // Draw event markers
+            const trackHeight = canvas.height / 2;
+            let eventIndex = 0;
+
+            // Machine events (schools)
+            for (const record of records) {
+                try {
+                    const data = JSON.parse(record.record_json);
+                    if (data.schools && data.schools.length) {
+                        const x = ((record.ts_utc - startMs) / totalMs) * canvas.width;
+                        ctx.fillStyle = '#4caf50';
+                        ctx.fillRect(x, trackHeight - 8, 3, 12);
+                        eventIndex++;
+                    }
+                } catch (e) {}
+            }
+
+            // Human events (labels) - would need labels table
+            // For now, show high novelty frames as human-interest events
+            for (const frame of frames) {
+                if (frame.novelty && frame.novelty > 0.7) {
+                    const x = ((frame.ts_utc - startMs) / totalMs) * canvas.width;
+                    ctx.fillStyle = '#ff9800';
+                    ctx.fillRect(x, trackHeight + 8, 3, 12);
+                }
+            }
+        }
+
+        function drawOverview() {
+            const canvas = els.overviewCanvas;
+            const ctx = canvas.getContext('2d');
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+
+            if (!frames.length) return;
+
+            const startMs = frames[0].ts_utc;
+            const endMs = frames[frames.length - 1].ts_utc;
+            const totalMs = endMs - startMs;
+
+            // Clear
+            ctx.fillStyle = '#2a2a2a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw frame density
+            const binWidth = 4;
+            const bins = Math.ceil(canvas.width / binWidth);
+            for (let i = 0; i < bins; i++) {
+                const t1 = startMs + (i / bins) * totalMs;
+                const t2 = startMs + ((i + 1) / bins) * totalMs;
+                const count = frames.filter(f => f.ts_utc >= t1 && f.ts_utc < t2).length;
+                if (count > 0) {
+                    const intensity = Math.min(count / 5, 1);
+                    ctx.fillStyle = `rgba(0, 188, 212, ${intensity})`;
+                    ctx.fillRect(i * binWidth, 0, binWidth, canvas.height);
+                }
+            }
+
+            // Draw zoom window indicator
+            if (state.cursorTime) {
+                const windowHalf = state.zoomWindowMs / 2;
+                const x1 = ((state.cursorTime - windowHalf - startMs) / totalMs) * canvas.width;
+                const x2 = ((state.cursorTime + windowHalf - startMs) / totalMs) * canvas.width;
+                ctx.fillStyle = 'rgba(0, 188, 212, 0.3)';
+                ctx.fillRect(x1, 0, x2 - x1, canvas.height);
+                ctx.strokeStyle = '#00bcd4';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x1, 0, x2 - x1, canvas.height);
+            }
+        }
+
+        function drawGPSTrack() {
+            const canvas = els.gpsTrackCanvas;
+            const ctx = canvas.getContext('2d');
+            const rect = els.framePane?.getBoundingClientRect() || { width: 400, height: 40 };
+            canvas.width = rect.width;
+            canvas.height = 40;
+
+            if (!frames.length) return;
+
+            const opacity = state.trackOpacity / 100;
+            ctx.strokeStyle = `rgba(0, 188, 212, ${opacity})`;
+            ctx.fillStyle = `rgba(0, 188, 212, ${opacity})`;
+            ctx.lineWidth = 2;
+
+            // Find bounds
+            const lats = frames.map(f => f.lat).filter(l => l != null);
+            const lons = frames.map(f => f.lon).filter(l => l != null);
+            if (!lats.length || !lons.length) return;
+
+            const minLat = Math.min(...lats);
+            const maxLat = Math.max(...lats);
+            const minLon = Math.min(...lons);
+            const maxLon = Math.max(...lons);
+            const latRange = maxLat - minLat || 1;
+            const lonRange = maxLon - minLon || 1;
+
+            // Draw track
+            ctx.beginPath();
+            for (const frame of frames) {
+                if (frame.lat == null || frame.lon == null) continue;
+                const x = ((frame.lon - minLon) / lonRange) * canvas.width;
+                const y = ((frame.lat - minLat) / latRange) * canvas.height;
+                if (x === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Draw current position
+            const current = findFrameAtTime(state.cursorTime);
+            if (current && current.lat != null && current.lon != null) {
+                const x = ((current.lon - minLon) / lonRange) * canvas.width;
+                const y = ((current.lat - minLat) / latRange) * canvas.height;
+                ctx.beginPath();
+                ctx.arc(x, y, 6, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // ============================================================================
+        // Cursor Navigation
+        // ============================================================================
+        function setCursorTime(ts) {
+            state.cursorTime = ts;
+            saveState();
+
+            const frame = findFrameAtTime(ts);
+            if (frame) {
+                loadEchogram(frame);
+                drawOverlay(frame);
+                updateHUD(frame);
+            }
+
+            drawTimeline();
+            drawOverview();
+            drawGPSTrack();
+        }
+
+        function stepFrame(delta) {
+            if (!frames.length) return;
+
+            const current = findFrameAtTime(state.cursorTime);
+            const currentIndex = frames.findIndex(f => f.frame_id === current?.frame_id);
+            const newIndex = Math.max(0, Math.min(frames.length - 1, currentIndex + delta));
+
+            if (frames[newIndex]) {
+                setCursorTime(frames[newIndex].ts_utc);
+            }
+        }
+
+        function stepTime(deltaMs) {
+            if (state.cursorTime == null && frames.length) {
+                setCursorTime(frames[0].ts_utc);
+                return;
+            }
+            setCursorTime(state.cursorTime + deltaMs);
+        }
+
+        function jumpToHighlight() {
+            if (highlight) {
+                setCursorTime(highlight.ts_utc);
+                showHighlightCaption();
+            }
+        }
+
+        function showHighlightCaption() {
+            if (highlight && highlight.caption) {
+                els.highlightCaption.textContent = `${formatTime(highlight.ts_utc)} — ${highlight.caption}`;
+                els.highlightCaption.classList.add('visible');
+                setTimeout(() => {
+                    els.highlightCaption.classList.remove('visible');
+                }, 5000);
+            }
+        }
+
+        function findNextEvent() {
+            if (!records.length) return;
+
+            const current = findFrameAtTime(state.cursorTime);
+            const nextRecord = records.find(r => r.ts_utc > (current?.ts_utc || 0));
+            if (nextRecord) {
+                setCursorTime(nextRecord.ts_utc);
+            }
+        }
+
+        function findPrevEvent() {
+            if (!records.length) return;
+
+            const current = findFrameAtTime(state.cursorTime);
+            const prevRecord = [...records].reverse().find(r => r.ts_utc < (current?.ts_utc || Infinity));
+            if (prevRecord) {
+                setCursorTime(prevRecord.ts_utc);
+            }
+        }
+
+        // ============================================================================
+        // Playback Control
+        // ============================================================================
+        function togglePlayback() {
+            if (isPlaying) {
+                stopPlayback();
+            } else {
+                startPlayback();
+            }
+        }
+
+        function startPlayback() {
+            isPlaying = true;
+            els.btnPlay.textContent = '⏸';
+
+            const interval = 100 / state.playbackSpeed;  // Base 100ms per frame at 1x
+            playbackInterval = setInterval(() => {
+                if (frames.length) {
+                    stepFrame(1);
+                } else {
+                    stopPlayback();
+                }
+            }, interval);
+        }
+
+        function stopPlayback() {
+            isPlaying = false;
+            els.btnPlay.textContent = '⏯';
+            if (playbackInterval) {
+                clearInterval(playbackInterval);
+                playbackInterval = null;
+            }
+        }
+
+        function setPlaybackSpeed(speed) {
+            state.playbackSpeed = speed;
+            saveState();
+
+            els.playbackPresets.forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.speed) === speed);
+            });
+
+            // Restart playback if active
+            if (isPlaying) {
+                stopPlayback();
+                startPlayback();
+            }
+        }
+
+        // ============================================================================
+        // Variable-Rate Drag (Timeline Scrubbing)
+        // ============================================================================
+        let dragState = {
+            isDragging: false,
+            startX: 0,
+            startY: 0,
+            startCursorTime: null
+        };
+
+        function getDragRate(offsetY) {
+            for (const tier of CONFIG.dragRateThresholds) {
+                if (offsetY < tier.offset + 50) {
+                    return tier;
+                }
+            }
+            return CONFIG.dragRateThresholds[CONFIG.dragRateThresholds.length - 1];
+        }
+
+        function handleDragStart(clientX, clientY) {
+            dragState.isDragging = true;
+            dragState.startX = clientX;
+            dragState.startY = clientY;
+            dragState.startCursorTime = state.cursorTime || (frames.length ? frames[0].ts_utc : Date.now());
+        }
+
+        function handleDragMove(clientX, clientY) {
+            if (!dragState.isDragging) return;
+
+            const dx = clientX - dragState.startX;
+            const dy = Math.max(0, clientY - dragState.startY);
+
+            const rateTier = getDragRate(dy);
+            const rate = rateTier.rate;
+
+            // Show rate indicator
+            els.rateIndicator.textContent = rateTier.label;
+            els.rateIndicator.classList.add('visible');
+
+            // Calculate new cursor time based on drag
+            const timelineWidth = els.timelineCanvas.getBoundingClientRect().width;
+            const totalRange = frames.length ? frames[frames.length - 1].ts_utc - frames[0].ts_utc : 86400000;
+            const deltaMs = (dx / timelineWidth) * totalRange * (rate / 3600000);
+
+            setCursorTime(dragState.startCursorTime - deltaMs);
+        }
+
+        function handleDragEnd() {
+            dragState.isDragging = false;
+            els.rateIndicator.classList.remove('visible');
+        }
+
+        // ============================================================================
+        // Layer Controls
+        // ============================================================================
+        function setLayerOpacity(value) {
+            state.layerOpacity = value;
+            saveState();
+            const current = findFrameAtTime(state.cursorTime);
+            drawOverlay(current);
+        }
+
+        function setTrackOpacity(value) {
+            state.trackOpacity = value;
+            saveState();
+            drawGPSTrack();
+        }
+
+        function applyPreset(preset) {
+            state.activePreset = preset;
+            saveState();
+
+            els.presetChips.forEach(chip => {
+                chip.classList.toggle('active', chip.dataset.preset === preset);
+            });
+
+            switch (preset) {
+                case 'minimal':
+                    els.overlayOpacity.value = 0;
+                    els.trackOpacity.value = 0;
+                    break;
+                case 'standard':
+                    els.overlayOpacity.value = 70;
+                    els.trackOpacity.value = 60;
+                    break;
+                case 'detailed':
+                    els.overlayOpacity.value = 100;
+                    els.trackOpacity.value = 100;
+                    break;
+            }
+
+            setLayerOpacity(parseInt(els.overlayOpacity.value));
+            setTrackOpacity(parseInt(els.trackOpacity.value));
+        }
+
+        // ============================================================================
+        // Event Listeners
+        // ============================================================================
+        function setupEventListeners() {
+            // Transport controls
+            els.btnPlay.addEventListener('click', togglePlayback);
+            els.btnPrev.addEventListener('click', () => stepFrame(-1));
+            els.btnNext.addEventListener('click', () => stepFrame(1));
+            els.btnHighlight.addEventListener('click', jumpToHighlight);
+
+            // Playback presets
+            els.playbackPresets.forEach(btn => {
+                btn.addEventListener('click', () => setPlaybackSpeed(parseInt(btn.dataset.speed)));
+            });
+
+            // Layer controls
+            els.overlayOpacity.addEventListener('input', (e) => setLayerOpacity(parseInt(e.target.value)));
+            els.trackOpacity.addEventListener('input', (e) => setTrackOpacity(parseInt(e.target.value)));
+
+            // Preset chips
+            els.presetChips.forEach(chip => {
+                chip.addEventListener('click', () => applyPreset(chip.dataset.preset));
+            });
+
+            // Timeline drag
+            els.timelineCanvas.addEventListener('mousedown', (e) => {
+                handleDragStart(e.clientX, e.clientY);
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                handleDragMove(e.clientX, e.clientY);
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (dragState.isDragging) {
+                    handleDragEnd();
+                }
+            });
+
+            // Timeline click to jump
+            els.timelineCanvas.addEventListener('click', (e) => {
+                if (Math.abs(e.clientX - dragState.startX) < 5) {
+                    const rect = els.timelineCanvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const ratio = x / rect.width;
+                    if (frames.length) {
+                        const startMs = frames[0].ts_utc;
+                        const endMs = frames[frames.length - 1].ts_utc;
+                        const targetTs = startMs + ratio * (endMs - startMs);
+                        setCursorTime(targetTs);
+                    }
+                }
+            });
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                switch (e.key) {
+                    case ' ':
+                        e.preventDefault();
+                        togglePlayback();
+                        break;
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        if (e.shiftKey) {
+                            stepTime(-600000);  // -10 minutes
+                        } else {
+                            stepFrame(-1);
+                        }
+                        break;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        if (e.shiftKey) {
+                            stepTime(600000);  // +10 minutes
+                        } else {
+                            stepFrame(1);
+                        }
+                        break;
+                    case 'h':
+                    case 'H':
+                        e.preventDefault();
+                        jumpToHighlight();
+                        break;
+                    case '[':
+                        e.preventDefault();
+                        findPrevEvent();
+                        break;
+                    case ']':
+                        e.preventDefault();
+                        findNextEvent();
+                        break;
+                    case '1':
+                        setPlaybackSpeed(1);
+                        break;
+                    case '2':
+                        setPlaybackSpeed(2);
+                        break;
+                    case '3':
+                        setPlaybackSpeed(10);
+                        break;
+                }
+            });
+
+            // Resize handler
+            window.addEventListener('resize', () => {
+                drawTimeline();
+                drawOverview();
+                drawGPSTrack();
+                const current = findFrameAtTime(state.cursorTime);
+                drawOverlay(current);
+            });
+        }
+
+        // ============================================================================
+        // Initialization
+        // ============================================================================
+        async function init() {
+            setupEventListeners();
+
+            // Restore UI state
+            els.overlayOpacity.value = state.layerOpacity;
+            els.trackOpacity.value = state.trackOpacity;
+            applyPreset(state.activePreset);
+            setPlaybackSpeed(state.playbackSpeed);
+
+            // Load data
+            els.hudDate.textContent = formatDate(state.currentDate);
+
+            try {
+                const data = await fetchDayData(state.currentDate);
+                if (!data) {
+                    els.loading.classList.add('hidden');
+                    els.emptyState.classList.remove('hidden');
+                    return;
+                }
+
+                frames = data.frames;
+                records = data.records;
+
+                // Load highlight
+                highlight = await fetchHighlight(state.currentDate);
+
+                // Set initial cursor
+                if (highlight) {
+                    state.cursorTime = highlight.ts_utc;
+                } else if (frames.length) {
+                    state.cursorTime = frames[0].ts_utc;
+                }
+
+                saveState();
+
+                // Initial render
+                drawTimeline();
+                drawOverview();
+                drawGPSTrack();
+
+                const frame = findFrameAtTime(state.cursorTime);
+                if (frame) {
+                    loadEchogram(frame);
+                    drawOverlay(frame);
+                    updateHUD(frame);
+
+                    if (highlight && highlight.frame_id === frame.frame_id) {
+                        showHighlightCaption();
+                    }
+                }
+
+            } catch (e) {
+                console.error('Failed to load data:', e);
+                els.loading.textContent = `Error: ${e.message}`;
+                return;
+            }
+
+            els.loading.classList.add('hidden');
+        }
+
+        // Start
+        init();
+    </script>
+</body>
+</html>
