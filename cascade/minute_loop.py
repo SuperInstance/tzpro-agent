@@ -12,7 +12,7 @@ import logging
 import time
 from pathlib import Path
 
-from . import config, gaze, ollama_client as oll
+from . import config, gaze, ollama_client as oll, twin_sink
 from .retention import RingBuffer
 
 log = logging.getLogger("cascade.m1")
@@ -80,6 +80,9 @@ class MinuteLoop:
 
             sidecar = self._load_sidecar(frame)
             parsed = oll.extract_json(raw) or {}
+            # Register the frame in the data twin (idempotent by hash);
+            # notes carry the twin frame_id for provenance joins.
+            frame_id = twin_sink.add_frame(frame, sidecar)
             # Record the model that ACTUALLY ran (fallback if primary
             # absent) — provenance must be honest (docs/06).
             model_used = (
@@ -90,6 +93,7 @@ class MinuteLoop:
             note = {
                 "ts_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "frame": frame.name,
+                "frame_id": frame_id,
                 "lat": (sidecar.get("position") or {}).get("lat_dd"),
                 "lon": (sidecar.get("position") or {}).get("lon_dd"),
                 "sog_kts": (sidecar.get("position") or {}).get("sog_kts"),
@@ -107,6 +111,9 @@ class MinuteLoop:
             # live only in the ring for the scribe, then GC. (docs/17)
             if note["novelty"] >= config.NOVELTY_THRESHOLD or note["notable"]:
                 self._persist_novel(note)
+                note["body"] = note["caption"]  # twin notes schema: body text
+                note["retained"] = 1
+                twin_sink.add_note(note)
         return notes
 
     def _persist_novel(self, note: dict) -> None:

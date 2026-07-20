@@ -11,7 +11,7 @@ import logging
 import time
 import urllib.request
 
-from . import config, gaze, ollama_client as oll
+from . import config, gaze, ollama_client as oll, twin_sink
 
 log = logging.getLogger("cascade.h1")
 
@@ -82,6 +82,7 @@ def write_briefing() -> str | None:
     tmp.write_text(text)
     tmp.replace(out)
     log.info("briefing written: %s", out.name)
+    twin_sink.add_briefing(text, config.MODEL_H1)
 
     # Analyst may steer all lower loops.
     tail = oll.extract_json(text) or {}

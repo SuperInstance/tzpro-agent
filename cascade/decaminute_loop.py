@@ -12,7 +12,7 @@ import logging
 import time
 from pathlib import Path
 
-from . import config, gaze, ollama_client as oll
+from . import config, gaze, ollama_client as oll, twin_sink
 
 log = logging.getLogger("cascade.m10")
 
@@ -56,9 +56,11 @@ def write_record(frame: Path, sidecar: dict, notes: list[dict]) -> dict | None:
 
     parsed = oll.extract_json(raw) or {}
     pos = sidecar.get("position") or {}
+    frame_id = twin_sink.add_frame(frame, sidecar)
     record = {
         "spec": "echogram_record/1",
         "capture_id": sidecar.get("capture_id", frame.stem),
+        "frame_id": frame_id,
         "ts_utc": sidecar.get("ts_utc") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "lat": pos.get("lat_dd"),
         "lon": pos.get("lon_dd"),
@@ -81,6 +83,7 @@ def write_record(frame: Path, sidecar: dict, notes: list[dict]) -> dict | None:
     tmp.write_text(json.dumps(record, indent=2))
     tmp.replace(out)
     log.info("record written: %s", out.name)
+    twin_sink.add_record(record)
 
     # Steer the racehorses: scribe may refocus the blinders for next interval.
     suggestion = (parsed.get("suggest_gaze") or "").strip()

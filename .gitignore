@@ -13,3 +13,8 @@ _doc_summary.md
 tmp_*
 *.db
 *.npy
+
+# Ops artifacts
+scripts/watchdog.log
+.cascade_notify_state.json
+cascade_out/
