@@ -537,3 +537,6 @@ Seven documents that define this project. Read them to understand the soul:
 
 *Riker, Operations Officer, F/V EILEEN, Ketchikan Alaska*  
 *First cast: July 15, 2026, 10:59 AKDT*
+## Related
+
+The cascade perception daemon now lives standalone at [SuperInstance/perception-cascade](https://github.com/SuperInstance/perception-cascade) — this repo keeps its local copy for the live vessel install.
