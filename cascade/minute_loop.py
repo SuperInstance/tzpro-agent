@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import time
 from pathlib import Path
 
@@ -32,6 +33,34 @@ Respond with ONLY a JSON object:
  "notable": <true|false>,
  "novelty": <0.0-1.0 how unusual vs a routine empty-water frame>
 }"""
+
+_DEPTH_RE = re.compile(config.RETENTION_DEPTH_RE, re.IGNORECASE)
+
+
+def should_retain(note: dict, gaze_active: bool = False) -> bool:
+    """OR-of-three retention rule (docs/research/NOVELTY_CALIBRATION.md).
+
+    Retain if ANY of:
+      1. novelty >= threshold (model-confident)
+      2. caption mentions a specific depth (the score misranks these)
+      3. distinct-feature combo (2+ key features + a discriminator word)
+    Gaze override: while a focus directive is live, always keep —
+    racehorses following their blinders (docs/17).
+    """
+    if gaze_active:
+        return True
+    if (note.get("novelty") or 0.0) >= config.NOVELTY_THRESHOLD:
+        return True
+    caption = note.get("caption") or ""
+    if _DEPTH_RE.search(caption):
+        return True
+    feats = {f.lower() for f in (note.get("features") or [])}
+    if (
+        len(feats & set(config.RETENTION_FEATURE_SET)) >= 2
+        and any(w in caption.lower() for w in config.RETENTION_DISTINCT_WORDS)
+    ):
+        return True
+    return False
 
 
 class MinuteLoop:
@@ -107,9 +136,9 @@ class MinuteLoop:
             self.ring.push(note)
             notes.append(note)
 
-            # Retention rule: novel notes are kept (training ore); the rest
-            # live only in the ring for the scribe, then GC. (docs/17)
-            if note["novelty"] >= config.NOVELTY_THRESHOLD or note["notable"]:
+            # Retention rule: OR-of-three + gaze override (calibrated
+            # 2026-07-19 — score-only retention was 95% noise).
+            if should_retain(note, gaze_active=(g is not None)):
                 self._persist_novel(note)
                 note["body"] = note["caption"]  # twin notes schema: body text
                 note["retained"] = 1

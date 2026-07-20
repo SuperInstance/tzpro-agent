@@ -43,9 +43,18 @@ H1_INTERVAL = int(os.environ.get("CASCADE_H1_INTERVAL", "3600"))
 HEARTBEAT_INTERVAL = 30
 
 # ── Retention ────────────────────────────────────────────────────────
-NOVELTY_THRESHOLD = float(os.environ.get("CASCADE_NOVELTY_THRESHOLD", "0.65"))
+# Calibration study (docs/research/NOVELTY_CALIBRATION.md): score-only
+# retention is broken — novelty scores compress into a 0.6-0.8 noise band.
+# The OR-of-three rule keeps 26% on the 2026-07-19 corpus, in the 5-25% band.
+NOVELTY_THRESHOLD = float(os.environ.get("CASCADE_NOVELTY_THRESHOLD", "0.85"))
 RING_BUFFER_SIZE = 120          # M1 notes kept in memory for the scribe
 GC_MINUTE_PNGS = os.environ.get("CASCADE_GC_MINUTE_PNGS", "0") == "1"  # off: keep frames
+
+# OR-of-three retention rule clauses (calibrated 2026-07-19)
+RETENTION_DEPTH_RE = r"(approximately|at)\s+\d+\s*(fm|fathoms?|m\b|met[er]+s?)"
+RETENTION_DISTINCT_WORDS = ("distinct", "localized", "concentrated", "dense", "sharp", "hard", "sudden")
+RETENTION_FEATURE_SET = ("blob school", "bottom hardness change", "thermocline break",
+                         "surface noise", "dense schools")
 
 # ── Inference limits ─────────────────────────────────────────────────
 M1_MAX_TOKENS = 150             # racehorses wear blinders: short answers
