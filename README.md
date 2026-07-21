@@ -1,5 +1,8 @@
 # TZ Pro Agent — Your Boat's Digital Watchstander
 
+> **New boat? Start at [FIRST_BOAT.md](FIRST_BOAT.md)** — 15 minutes to
+> replaying your first day. Everything else in this repo is detail.
+
 **Eyes on the sounder. Records what it sees. Learns your grounds. Tells you what changed.**
 
 ![Status](https://img.shields.io/badge/status-operational-green)
