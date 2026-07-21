@@ -105,6 +105,36 @@ def _format_tide_weather_section(ctx: dict) -> str:
     return "\n".join(lines)
 
 
+def _retention_stats() -> str | None:
+    """Today's M1 retention as 'kept/seen = pct, in/out of band'.
+
+    Approximation, labeled: 'seen' = frames in the twin today (M1 attempts
+    every new frame once); 'kept' = novel notes retained today by the
+    OR-of-three rule. Band: 5–25% (docs/21 Week-4 checkpoint).
+    """
+    try:
+        import sqlite3
+        db = config.WORKSPACE / "memory" / "meta.db"
+        if not db.exists():
+            return None
+        day_start = int(time.time() - (time.time() % 86400)) * 1000  # UTC midnight
+        conn = sqlite3.connect(str(db))
+        seen = conn.execute(
+            "SELECT COUNT(*) FROM frames WHERE ts_utc >= ?", (day_start,)
+        ).fetchone()[0]
+        kept = conn.execute(
+            "SELECT COUNT(*) FROM notes WHERE ts_utc >= ? AND retained = 1", (day_start,)
+        ).fetchone()[0]
+        conn.close()
+        if seen == 0:
+            return None
+        pct = 100.0 * kept / seen
+        band = "in band" if 5.0 <= pct <= 25.0 else "OUT of band (5–25%)"
+        return f"{kept}/{seen} = {pct:.0f}%, {band}"
+    except Exception:
+        return None
+
+
 def write_briefing() -> str | None:
     if not oll.vision_available():
         log.info("ollama unavailable — H1 idling")
@@ -148,6 +178,13 @@ def write_briefing() -> str | None:
             text = text + "\n\n" + section
         else:
             log.debug("context offline, skipping tide & weather section")
+
+    # Retention stats line (calibration protocol, docs/research/
+    # NOVELTY_CALIBRATION.md §5): drift in M1 retention must be visible
+    # day to day. Programmatic, not model-written — always accurate.
+    stats = _retention_stats()
+    if stats:
+        text = text + f"\n\n_M1 retention: {stats}_"
 
     stamp = time.strftime("%Y%m%d_%H%M", time.gmtime())
     out = config.DIR_BRIEFINGS / f"briefing_{stamp}.md"
