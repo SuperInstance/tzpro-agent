@@ -90,6 +90,19 @@ def create_fixture_db(workspace: Path) -> None:
         )
     """)
 
+    # Twin briefings table (matches twin/twin.py schema)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS briefings (
+            briefing_id TEXT PRIMARY KEY,
+            ts_utc       INTEGER NOT NULL,
+            period_start INTEGER,
+            period_end   INTEGER,
+            body         TEXT,
+            body_sha256  TEXT,
+            model        TEXT
+        )
+    """)
+
     # Insert 5 frames at 10-minute intervals starting from 2024-07-19 12:00:00 UTC
     base_ts = int(time.mktime((2024, 7, 19, 12, 0, 0, 0, 0, 0)) * 1000)
 
@@ -146,6 +159,44 @@ def create_fixture_db(workspace: Path) -> None:
                 "school, bottom",
                 "test-model",
                 0.8 + i * 0.02
+            )
+        )
+
+    # Two briefings — second is newer (must come back first from the API)
+    briefings = [
+        {
+            "briefing_id": "brief_2024_07_18",
+            "ts_utc": base_ts - 86_400_000,  # day before
+            "period_start": base_ts - 86_400_000,
+            "period_end": base_ts - 1,
+            "body": "# 2024-07-18 Debrief\n\nQuiet day.\n- One school at 22 fm\n- Bottom at 50 fm",
+            "model": "test-model",
+        },
+        {
+            "briefing_id": "brief_2024_07_19",
+            "ts_utc": base_ts + 43_200_000,  # half a day after base, newest
+            "period_start": base_ts,
+            "period_end": base_ts + 86_399_999,
+            "body": "# 2024-07-19 Debrief\n\nBusy day on the grounds.\n- Multiple schools\n- Best bite at dawn",
+            "model": "test-model",
+        },
+    ]
+    for b in briefings:
+        cur.execute(
+            """
+            INSERT INTO briefings (
+                briefing_id, ts_utc, period_start, period_end,
+                body, body_sha256, model
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                b["briefing_id"],
+                b["ts_utc"],
+                b["period_start"],
+                b["period_end"],
+                b["body"],
+                "sha256_" + b["briefing_id"],
+                b["model"],
             )
         )
 
@@ -311,6 +362,49 @@ class TestScrubberServer(unittest.TestCase):
 
         content = response.read().decode()
         self.assertIn("TZPro Day Scrubber", content)
+
+    def test_api_briefings(self):
+        """Test GET /api/briefings returns 200 with both briefings, newest first."""
+        url = f"{self.base_url}/api/briefings"
+        response = urllib.request.urlopen(url)
+
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.headers.get_content_type(), "application/json")
+
+        data = json.loads(response.read().decode())
+        self.assertIn("briefings", data)
+
+        briefings = data["briefings"]
+        self.assertEqual(len(briefings), 2)
+
+        # Newest first — brief_2024_07_19 has the larger ts_utc
+        self.assertEqual(briefings[0]["briefing_id"], "brief_2024_07_19")
+        self.assertEqual(briefings[1]["briefing_id"], "brief_2024_07_18")
+
+        # Required fields per spec
+        for b in briefings:
+            self.assertIn("briefing_id", b)
+            self.assertIn("ts_utc", b)
+            self.assertIn("period_start", b)
+            self.assertIn("period_end", b)
+            self.assertIn("model", b)
+            self.assertIn("body", b)
+
+        # Ordering invariant
+        self.assertGreaterEqual(
+            briefings[0]["ts_utc"], briefings[1]["ts_utc"]
+        )
+
+    def test_briefings_page(self):
+        """Test GET /briefings serves the debriefs page."""
+        url = f"{self.base_url}/briefings"
+        response = urllib.request.urlopen(url)
+
+        self.assertEqual(response.status, 200)
+        self.assertIn("text/html", response.headers.get_content_type())
+
+        content = response.read().decode()
+        self.assertIn("Debrief", content)
 
     def test_api_day_performance(self):
         """Test /api/day responds in <300ms (performance budget)."""

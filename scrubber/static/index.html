@@ -105,6 +105,11 @@
             background: var(--accent);
         }
 
+        a.btn-transport {
+            text-decoration: none;
+            font-size: 28px;
+        }
+
         #playback-presets {
             display: flex;
             gap: 4px;
@@ -426,6 +431,7 @@
         </div>
 
         <div id="transport">
+            <a class="btn-transport btn-debriefs" href="/briefings" title="Read daily debriefs">📋</a>
             <button class="btn-transport" id="btn-prev" title="Previous frame [←]">⏪</button>
             <button class="btn-transport" id="btn-play" title="Play/Pause [Space]">⏯</button>
             <button class="btn-transport" id="btn-next" title="Next frame [→]">⏩</button>

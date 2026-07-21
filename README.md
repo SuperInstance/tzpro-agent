@@ -20,6 +20,31 @@ Think of it like a **deckhand who never sleeps, never gets seasick, and takes pe
 
 ---
 
+## The system as it is today
+
+- **`cascade/`** — the perception loops: M1 minute notes, M10 ten-minute records, H1 hourly briefings, plus the gaze attention channel and tide/weather context. See `cascade/README.md`.
+- **`twin/`** — the memory: SQLite data twin (frames, blobs, records, notes, briefings, labels). See `twin/README.md`.
+- **`scrubber/`** — replay any day in a web UI: `python -m scrubber.serve` → `localhost:8080`.
+- **`replay/`** — replay harness: would we have analyzed it the same way?
+- **`analyst/`** — voice↔telemetry alignment (learning from what you say while you drive).
+- **`scripts/`** — ops: scheduled-task install, watchdog, USB backup, cloud backup.
+- **`FIRST_BOAT.md`** — new boats start here. **`BOAT_RUNBOOK.md`** — daily ops.
+
+```
+tzpro-agent/
+├── cascade/      # perception loops (M1/M10/H1 + gaze + tide/weather)
+├── twin/         # SQLite data twin (the memory)
+├── scrubber/     # day-replay web UI
+├── replay/       # replay harness
+├── analyst/      # voice alignment pipeline
+├── scripts/      # ops: scheduler, watchdog, backups
+├── capture_v3.py # TZ Pro screen capture daemon
+├── FIRST_BOAT.md # ← start here
+└── BOAT_RUNBOOK.md
+```
+
+---
+
 ## The Problem It Solves
 
 ### What You Know (But Can't Prove)

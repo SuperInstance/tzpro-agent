@@ -236,6 +236,39 @@ def query_highlight(db_path: Path, start_ms: int, end_ms: int) -> Optional[dict[
     }
 
 
+def query_briefings(db_path: Path, limit: int = 200) -> list[dict[str, Any]]:
+    """
+    Query all briefings from the twin briefings table, newest first.
+
+    Returns a list of dicts: briefing_id, ts_utc, period_start,
+    period_end, model, body. Degrades to [] if the table is missing
+    (minimal fixture DBs may lack it).
+    """
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    has_briefings = cur.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='briefings'"
+    ).fetchone()
+    if not has_briefings:
+        conn.close()
+        return []
+
+    rows = cur.execute(
+        """
+        SELECT briefing_id, ts_utc, period_start, period_end, model, body
+        FROM briefings
+        ORDER BY ts_utc DESC
+        LIMIT ?
+        """,
+        (limit,)
+    ).fetchall()
+
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 class ScrubberRequestHandler(SimpleHTTPRequestHandler):
     """HTTP request handler for the day scrubber."""
 
@@ -260,6 +293,11 @@ class ScrubberRequestHandler(SimpleHTTPRequestHandler):
             self.serve_static(path)
             return
 
+        # Briefings page (single-file HTML)
+        if path == "/briefings":
+            self.serve_static("/briefings.html")
+            return
+
         # API: day data
         if path.startswith("/api/day/"):
             self.handle_day_api(path)
@@ -268,6 +306,11 @@ class ScrubberRequestHandler(SimpleHTTPRequestHandler):
         # API: blob
         if path.startswith("/api/blob/"):
             self.handle_blob_api(path)
+            return
+
+        # API: briefings list
+        if path == "/api/briefings":
+            self.handle_briefings_api()
             return
 
         # 404
@@ -354,6 +397,14 @@ class ScrubberRequestHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-length", str(len(body)))
         self.end_headers()
         self.wfile.write(body.encode())
+
+    def handle_briefings_api(self):
+        """Handle GET /api/briefings → JSON list, newest first."""
+        if self.db_path is None:
+            self.send_json_error(500, "Database not found")
+            return
+        briefings = query_briefings(self.db_path)
+        self.send_json({"briefings": briefings})
 
     def send_json_error(self, code: int, message: str):
         """Send JSON error response."""

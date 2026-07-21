@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TZPro Debriefs</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2a2a2a;
+            --bg-tertiary: #3a3a3a;
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --accent: #00bcd4;
+            --accent-dim: rgba(0, 188, 212, 0.3);
+            --danger: #f44336;
+            --font-size-body: 18px;
+            --font-size-hud: 20px;
+            --font-size-large: 24px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: var(--font-size-body);
+            line-height: 1.5;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* HUD Bar - same 48px rail as index.html */
+        #hud {
+            height: 48px;
+            background: var(--bg-secondary);
+            border-bottom: 2px solid var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 16px;
+            flex-shrink: 0;
+        }
+
+        .hud-title {
+            color: var(--text-primary);
+            font-size: var(--font-size-hud);
+            font-weight: 600;
+            flex: 1;
+        }
+
+        .btn-back {
+            min-width: 64px;
+            height: 40px;
+            padding: 0 16px;
+            background: var(--bg-tertiary);
+            border: 2px solid var(--accent);
+            color: var(--text-primary);
+            font-size: var(--font-size-body);
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+        }
+
+        .btn-back:hover {
+            background: var(--accent-dim);
+        }
+
+        .btn-back:active {
+            background: var(--accent);
+        }
+
+        /* Page body */
+        main {
+            flex: 1;
+            max-width: 900px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 24px 16px 64px 16px;
+        }
+
+        #status {
+            color: var(--text-secondary);
+            font-size: var(--font-size-body);
+            padding: 24px 0;
+            text-align: center;
+        }
+
+        /* Debrief cards - >=64px touch target */
+        .briefing-card {
+            background: var(--bg-secondary);
+            border: 2px solid var(--bg-tertiary);
+            border-radius: 8px;
+            margin-bottom: 16px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: border-color 0.1s ease;
+        }
+
+        .briefing-card:hover {
+            border-color: var(--accent);
+        }
+
+        .briefing-card.open {
+            border-color: var(--accent);
+            cursor: default;
+        }
+
+        .briefing-summary {
+            min-height: 64px;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .briefing-date {
+            color: var(--accent);
+            font-size: var(--font-size-large);
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        .briefing-preview {
+            color: var(--text-secondary);
+            font-size: var(--font-size-body);
+            line-height: 1.4;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .briefing-chevron {
+            color: var(--text-secondary);
+            font-size: 20px;
+            float: right;
+            margin-left: 12px;
+        }
+
+        .briefing-card.open .briefing-chevron {
+            transform: rotate(90deg);
+        }
+
+        .briefing-body {
+            display: none;
+            padding: 0 20px 20px 20px;
+            border-top: 2px solid var(--bg-tertiary);
+            margin-top: 0;
+        }
+
+        .briefing-card.open .briefing-body {
+            display: block;
+        }
+
+        .briefing-meta {
+            color: var(--text-secondary);
+            font-size: 16px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--bg-tertiary);
+            margin-bottom: 16px;
+        }
+
+        /* Rendered markdown */
+        .md h1, .md h2, .md h3, .md h4 {
+            color: var(--text-primary);
+            margin: 20px 0 10px 0;
+            line-height: 1.3;
+        }
+
+        .md h1 { font-size: 28px; }
+        .md h2 { font-size: 24px; }
+        .md h3 { font-size: 20px; }
+        .md h4 { font-size: 18px; }
+
+        .md p {
+            margin: 10px 0;
+        }
+
+        .md ul, .md ol {
+            margin: 10px 0;
+            padding-left: 28px;
+        }
+
+        .md li {
+            margin: 6px 0;
+        }
+
+        .md code {
+            background: var(--bg-tertiary);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'SF Mono', Consolas, monospace;
+            font-size: 16px;
+        }
+
+        .md hr {
+            border: none;
+            border-top: 2px solid var(--bg-tertiary);
+            margin: 20px 0;
+        }
+
+        .md strong { color: var(--text-primary); }
+        .md em { color: var(--text-secondary); }
+
+        .md blockquote {
+            border-left: 4px solid var(--accent);
+            padding-left: 16px;
+            margin: 12px 0;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div id="hud">
+        <span class="hud-title">Debriefs</span>
+        <a class="btn-back" href="/" title="Back to scrubber">← Scrubber</a>
+    </div>
+
+    <main>
+        <div id="status">Loading debriefs…</div>
+        <div id="briefing-list"></div>
+    </main>
+
+    <script>
+        "use strict";
+
+        // Tiny stdlib-only markdown → HTML renderer.
+        // Supports: ATX headers, ul/ol lists, hr, blockquote, paragraphs,
+        // inline bold/italic/code, and soft line breaks. No deps, no CDN.
+        function escapeHtml(s) {
+            return s.replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;");
+        }
+
+        function renderInline(text) {
+            // Escape first, then re-introduce inline markup.
+            let s = escapeHtml(text);
+            // Inline code: `code`
+            s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+            // Bold: **text**
+            s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+            // Italic: *text*
+            s = s.replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
+            return s;
+        }
+
+        function mdToHtml(md) {
+            if (!md) return "";
+            const lines = md.replace(/\r\n/g, "\n").split("\n");
+            const out = [];
+            let i = 0;
+            let para = [];
+
+            function flushPara() {
+                if (para.length) {
+                    out.push("<p>" + renderInline(para.join(" ")) + "</p>");
+                    para = [];
+                }
+            }
+
+            while (i < lines.length) {
+                const line = lines[i];
+                const trimmed = line.trim();
+
+                // Blank line → paragraph break
+                if (trimmed === "") {
+                    flushPara();
+                    i++;
+                    continue;
+                }
+
+                // Horizontal rule
+                if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+                    flushPara();
+                    out.push("<hr>");
+                    i++;
+                    continue;
+                }
+
+                // Headers
+                const h = /^(#{1,4})\s+(.*)$/.exec(trimmed);
+                if (h) {
+                    flushPara();
+                    const level = h[1].length;
+                    out.push("<h" + level + ">" + renderInline(h[2]) + "</h" + level + ">");
+                    i++;
+                    continue;
+                }
+
+                // Blockquote
+                if (/^>\s?/.test(trimmed)) {
+                    flushPara();
+                    const quoteLines = [];
+                    while (i < lines.length && /^>\s?/.test(lines[i].trim())) {
+                        quoteLines.push(lines[i].trim().replace(/^>\s?/, ""));
+                        i++;
+                    }
+                    out.push("<blockquote>" + renderInline(quoteLines.join(" ")) + "</blockquote>");
+                    continue;
+                }
+
+                // Unordered list
+                if (/^[-*+]\s+/.test(trimmed)) {
+                    flushPara();
+                    out.push("<ul>");
+                    while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) {
+                        out.push("<li>" + renderInline(lines[i].replace(/^\s*[-*+]\s+/, "")) + "</li>");
+                        i++;
+                    }
+                    out.push("</ul>");
+                    continue;
+                }
+
+                // Ordered list
+                if (/^\d+\.\s+/.test(trimmed)) {
+                    flushPara();
+                    out.push("<ol>");
+                    while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+                        out.push("<li>" + renderInline(lines[i].replace(/^\s*\d+\.\s+/, "")) + "</li>");
+                        i++;
+                    }
+                    out.push("</ol>");
+                    continue;
+                }
+
+                // Otherwise accumulate into a paragraph
+                para.push(trimmed);
+                i++;
+            }
+
+            flushPara();
+            return out.join("\n");
+        }
+
+        function fmtDate(tsUtc) {
+            if (!tsUtc) return "—";
+            const d = new Date(tsUtc < 1e12 ? tsUtc * 1000 : tsUtc);
+            if (isNaN(d.getTime())) return "—";
+            // UTC, consistent with the rest of the scrubber
+            const yyyy = d.getUTCFullYear();
+            const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+            const dd = String(d.getUTCDate()).padStart(2, "0");
+            return yyyy + "-" + mm + "-" + dd;
+        }
+
+        function previewLines(body) {
+            if (!body) return ["No body"];
+            const lines = body.replace(/\r\n/g, "\n").split("\n")
+                .map(l => l.trim())
+                .filter(l => l !== "" && !/^#{1,4}\s+/.test(l) && !/^[-*+]\s+/.test(l));
+            return lines.slice(0, 2);
+        }
+
+        function toggleCard(card) {
+            card.classList.toggle("open");
+        }
+
+        function renderBriefings(briefings) {
+            const status = document.getElementById("status");
+            const list = document.getElementById("briefing-list");
+            list.innerHTML = "";
+
+            if (!briefings.length) {
+                status.textContent = "No debriefs yet.";
+                return;
+            }
+
+            status.textContent = "";
+
+            for (const b of briefings) {
+                const card = document.createElement("div");
+                card.className = "briefing-card";
+
+                const summary = document.createElement("div");
+                summary.className = "briefing-summary";
+                summary.style.minHeight = "64px";
+
+                const dateEl = document.createElement("div");
+                dateEl.className = "briefing-date";
+                dateEl.textContent = fmtDate(b.ts_utc);
+
+                const chev = document.createElement("span");
+                chev.className = "briefing-chevron";
+                chev.textContent = "›";
+
+                const prev = document.createElement("div");
+                prev.className = "briefing-preview";
+                prev.appendChild(chev);
+                prev.appendChild(document.createTextNode(previewLines(b.body).join("  ·  ")));
+
+                summary.appendChild(dateEl);
+                summary.appendChild(prev);
+
+                const body = document.createElement("div");
+                body.className = "briefing-body";
+
+                const meta = document.createElement("div");
+                meta.className = "briefing-meta";
+                meta.textContent = "model: " + (b.model || "—") + "  ·  period: " +
+                    fmtDate(b.period_start) + " → " + fmtDate(b.period_end);
+
+                const md = document.createElement("div");
+                md.className = "md";
+                md.innerHTML = mdToHtml(b.body || "");
+
+                body.appendChild(meta);
+                body.appendChild(md);
+
+                card.appendChild(summary);
+                card.appendChild(body);
+
+                summary.addEventListener("click", () => toggleCard(card));
+
+                list.appendChild(card);
+            }
+        }
+
+        async function load() {
+            try {
+                const res = await fetch("/api/briefings");
+                if (!res.ok) {
+                    document.getElementById("status").textContent = "Failed to load debriefs (HTTP " + res.status + ").";
+                    return;
+                }
+                const data = await res.json();
+                const briefings = (data && data.briefings) ? data.briefings : [];
+                renderBriefings(briefings);
+            } catch (err) {
+                document.getElementById("status").textContent = "Offline — debriefs unavailable.";
+            }
+        }
+
+        load();
+    </script>
+</body>
+</html>
