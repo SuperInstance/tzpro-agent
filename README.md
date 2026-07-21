@@ -73,8 +73,8 @@ tzpro-agent/
 
 ### The Setup (One Time)
 ```
-You're on F/V Eileen, longlining for chum in SE Alaska.
-Gear: 32 hooks, 1.5 fm spacing, soaking at ~48 fm.
+You're on F/V Eileen, trolling for chum in SE Alaska.
+Gear: 32 hooks per wire, 1.5 fm spacing, soaking at ~48 fm.
 Sounder: Furuno TZ Pro (50/200 kHz dual band).
 GPS: u-blox on COM6.
 ```
