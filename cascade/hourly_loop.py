@@ -26,7 +26,12 @@ Write the briefing. Plain pilot-house language, no filler. Structure:
 3. RECOMMENDATIONS — each with a confidence (0-1) and one-line basis
 4. WATCH — what to focus on next hour (becomes a gaze directive)
 
-End with a JSON block: {"recommendations": [{"action": "...", "confidence": 0.0, "basis": "..."}], "suggest_gaze": "..."}"""
+End with a JSON block: {"recommendations": [{"action": "...", "confidence": 0.0, "basis": "..."}], "suggest_gaze": "..."}
+
+RULES: Respond with ONLY the briefing in that structure. Brief from the
+'records' array — it is the canonical source. 'context_notes' (if any)
+are background chatter, not the story. No preamble, no offers of help,
+no meta-commentary about the data."""
 
 
 def _text_prompt(prompt: str, model: str, max_tokens: int) -> str | None:
@@ -51,13 +56,16 @@ def _text_prompt(prompt: str, model: str, max_tokens: int) -> str | None:
 
 
 def _mean_position(records: list[dict]) -> tuple[float, float] | None:
-    """Calculate mean lat/lon from records with position data."""
+    """Calculate mean lat/lon from records with position data.
+
+    Accepts both shapes: M10 records carry top-level lat/lon; raw
+    capture sidecars nest them under position.lat_dd/lon_dd."""
     lats, lons = [], []
     for r in records:
-        pos = r.get("position") or {}
+        pos = r.get("position") or r
         if isinstance(pos, dict):
-            lat = pos.get("lat")
-            lon = pos.get("lon")
+            lat = pos.get("lat", pos.get("lat_dd"))
+            lon = pos.get("lon", pos.get("lon_dd"))
             if lat is not None and lon is not None:
                 try:
                     lats.append(float(lat))
@@ -119,7 +127,12 @@ def write_briefing() -> str | None:
         except Exception:
             pass
 
-    payload = json.dumps({"records": records[-60:], "novel_notes": novel}, indent=1)
+    # Brief from the canonical M10 records. Novel M1 notes are context
+    # only when records are thin — with a full record set, notes just
+    # pull the model off-structure (found 2026-07-20: the model
+    # summarized the notes and ignored the records entirely).
+    include_notes = novel[-5:] if len(records) < 10 else []
+    payload = json.dumps({"records": records[-60:], "context_notes": include_notes}, indent=1)
     text = _text_prompt(PROMPT + "\n\nDATA:\n" + payload, config.MODEL_H1, config.H1_MAX_TOKENS)
     if text is None:
         return None
