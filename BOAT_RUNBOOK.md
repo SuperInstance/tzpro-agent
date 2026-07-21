@@ -43,6 +43,11 @@
 
 Should already be running: TZ Pro capture, cascade daemon (SYSTEM, auto-started), watchdog.
 
+0. **The roster** (who's alive, one glance):
+   ```bash
+   python -m cascade.roster
+   ```
+   *Expected:* every agent `alive`, ages <120s. Anything `stale`/`dead`/`quarantined` → §6.
 1. **Capture log tail** — TZ Pro window on top, Record indicator red.
 2. **Heartbeat age:**
    ```powershell
@@ -83,6 +88,11 @@ Should already be running: TZ Pro capture, cascade daemon (SYSTEM, auto-started)
    ```
    *Expected:* ends with `VERIFIED: N files, M manifest entries, 0 mismatches`. "VERIFIED" = every file re-hashed after copy and matches — silent-rot caught.
 3. **Weekly:** every Sunday. Rotate two USBs; keep one off-boat.
+4. **Monthly restore drill** (prove the backup is real, not just present):
+   ```bash
+   python scripts\restore_drill.py --source E:\tzpro-backup --sandbox %TEMP%\restore-drill
+   ```
+   *Expected:* `DRILL PASSED` with all files hash-verified. Any `FAILED` line names the corrupted file — that USB is suspect; re-run §5.2 to a fresh drive.
 
 ## 6. When something dies
 
