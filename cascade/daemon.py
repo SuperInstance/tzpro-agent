@@ -40,6 +40,11 @@ class CascadeDaemon:
         tmp = config.HEARTBEAT_FILE.with_suffix(".tmp")
         tmp.write_text(json.dumps(hb, indent=2))
         tmp.replace(config.HEARTBEAT_FILE)
+        # ...and onto the roster (docs/28: the directory IS the roster)
+        from . import roster
+        roster.beat("cascade", role="perception", shell="murex",
+                    detail={"m1_seen": hb["m1_frames_seen"],
+                            "records": hb["records_written"]})
 
     # ── M10: canonical frames awaiting a record ──────────────────────
     def _pending_canonical_frames(self) -> list[Path]:
