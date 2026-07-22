@@ -53,6 +53,11 @@ def vision_prompt(image_path: Path, prompt: str, model: str,
             "messages": [{"role": "user", "content": prompt, "images": [b64]}],
             "stream": False,
             "think": False,
+            # Keep the model in VRAM between M1 calls — without this ollama
+            # unloads after 5 min and the next minute-loop call pays a 20-40s
+            # model-load penalty. 30 min is enough to survive a quiet gap
+            # without permanently occupying 4.5 GB.
+            "keep_alive": "30m",
             "options": {"num_predict": max_tokens, "temperature": 0.2},
         }).encode()
         req = urllib.request.Request(
