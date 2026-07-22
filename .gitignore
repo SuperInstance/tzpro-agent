@@ -23,3 +23,8 @@ cascade_out/
 .last_nmea_heartbeat
 .capture_tray_pid
 .last_command
+
+# Stack launcher / runtime logs
+logs/
+roster/
+dryrun.txt
