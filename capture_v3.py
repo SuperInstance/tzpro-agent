@@ -233,7 +233,7 @@ def capture_frame() -> Optional[Path]:
             "",
             "## Vessel",
             f"- Position: {lat_str}N  {lon_str}W  (DDMM.mmm)",
-            f"- SOG {sog_val:.2f} kn" + (f"  COG {cog_val:.0f}°" if cog_val else ""),
+            f"- SOG {(sog_val if sog_val is not None else 0):.2f} kn" + (f"  COG {(cog_val if cog_val is not None else 0):.0f}deg" if cog_val is not None else ""),
             "",
             "## Display",
             f"- Monitor: DISPLAY6 (1920x1080 @ X={DISPLAY_OFFSET_X})",
