@@ -18,3 +18,8 @@ tmp_*
 scripts/watchdog.log
 .cascade_notify_state.json
 cascade_out/
+
+# NMEA bridge runtime artifacts
+.last_nmea_heartbeat
+.capture_tray_pid
+.last_command

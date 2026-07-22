@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>NMEA0183 bridge for TimeZero Professional. Reads COM6 and serves on 127.0.0.1:6006 (raw TCP) and 127.0.0.1:8654 (HTTP/SSE JSON). Starts at boot, before user logon, restarts on failure.</Description>
+    <Author>F/V EILEEN</Author>
+  </RegistrationInfo>
+  <Triggers>
+    <BootTrigger>
+      <Delay>PT30S</Delay>
+      <Enabled>true</Enabled>
+    </BootTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <UserId>S-1-5-18</UserId>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <Priority>5</Priority>
+    <RestartOnFailure>
+      <Interval>PT1M</Interval>
+      <Count>999</Count>
+    </RestartOnFailure>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>C:\Python314\pythonw.exe</Command>
+      <Arguments>C:\Users\casey\tzpro-agent\nmea_bridge.py --port COM6 --baud 4800</Arguments>
+      <WorkingDirectory>C:\Users\casey\tzpro-agent</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>
