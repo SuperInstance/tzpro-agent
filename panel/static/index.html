@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>tzpro-agent / day console</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --bg-2: #161b22;
+    --bg-3: #21262d;
+    --fg: #e6edf3;
+    --fg-dim: #9aa4af;
+    --acc: #00bcd4;
+    --acc-dim: rgba(0, 188, 212, 0.18);
+    --warn: #f59e0b;
+    --ok: #34d399;
+    --err: #ef4444;
+    --rad: 8px;
+    --gap: 12px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 14px;
+    line-height: 1.4;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  /* ── HUD bar ─────────────────────────────────────────────────────── */
+  #hud {
+    height: 52px; flex-shrink: 0;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--bg-3);
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 16px;
+  }
+  .hud-item { display: flex; align-items: center; gap: 6px; }
+  .hud-label { color: var(--fg-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .hud-val { font-weight: 600; }
+  input[type=date] {
+    background: var(--bg-3); color: var(--fg);
+    border: 1px solid #3a414a; border-radius: 6px;
+    padding: 6px 8px; font: inherit;
+  }
+  button {
+    background: var(--bg-3); color: var(--fg);
+    border: 1px solid #3a414a; border-radius: 6px;
+    padding: 6px 10px; font: inherit; cursor: pointer;
+  }
+  button:hover { border-color: var(--acc); }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--fg-dim);
+  }
+  .status-dot.live { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .status-dot.dead { background: var(--err); }
+
+  /* ── panels container ─────────────────────────────────────────── */
+  #panels {
+    flex: 1; min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr 1.4fr 1.4fr;
+    gap: var(--gap);
+    padding: var(--gap);
+  }
+  .panel {
+    background: var(--bg-2);
+    border: 1px solid var(--bg-3);
+    border-radius: var(--rad);
+    display: flex; flex-direction: column;
+    min-height: 0;
+  }
+  .panel-head {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--bg-3);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .panel-title { font-weight: 600; font-size: 14px; }
+  .panel-sub { color: var(--fg-dim); font-size: 12px; }
+  .panel-body { flex: 1; min-height: 0; overflow-y: auto; }
+
+  /* ── panel 1: M1 logs (delta) ─────────────────────────────────── */
+  .m1-list { padding: 6px; }
+  .m1 {
+    display: grid; grid-template-columns: 80px 1fr;
+    gap: 4px 10px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--bg-3);
+  }
+  .m1-time { font-family: var(--mono); color: var(--fg-dim); font-size: 12px; align-self: start; }
+  .m1-caption { grid-column: 2; }
+  .m1-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .tag {
+    display: inline-block;
+    background: var(--bg-3); color: var(--fg-dim);
+    padding: 1px 6px; border-radius: 4px;
+    font-size: 11px;
+  }
+  .tag.gaze { background: var(--acc-dim); color: var(--acc); }
+  .m1-coords { font-family: var(--mono); color: var(--fg-dim); font-size: 11px; }
+
+  /* ── panel 2: M10 records ────────────────────────────────────── */
+  .m10-list { padding: 6px; }
+  .m10 {
+    display: grid; grid-template-columns: 80px 1fr;
+    gap: 4px 10px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--bg-3);
+  }
+  .m10-head { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; }
+  .m10-time { font-family: var(--mono); font-weight: 600; }
+  .m10-coords { font-family: var(--mono); color: var(--fg-dim); font-size: 11px; }
+  .m10-summary { grid-column: 2; }
+  .m10-details { grid-column: 2; display: flex; gap: 12px; flex-wrap: wrap;
+                  color: var(--fg-dim); font-size: 12px; }
+  .m10-image {
+    grid-column: 1 / -1;
+    margin-top: 6px;
+    max-width: 100%;
+    border-radius: 6px; border: 1px solid var(--bg-3);
+    image-rendering: pixelated;
+    cursor: zoom-in;
+  }
+  .m10-details b { color: var(--fg); font-weight: 600; }
+  .badge {
+    display: inline-block;
+    background: var(--bg-3); padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; color: var(--fg-dim);
+  }
+  .badge.school { background: var(--acc-dim); color: var(--acc); }
+  .badge.tc { background: rgba(245,158,11,0.18); color: var(--warn); }
+  .badge.anom { background: rgba(239,68,68,0.18); color: var(--err); }
+
+  /* ── panel 3: briefings ──────────────────────────────────────── */
+  .briefs { padding: 6px; }
+  .brief {
+    margin-bottom: 8px;
+    background: var(--bg-3);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .brief-head {
+    padding: 8px 12px;
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--bg-2);
+    cursor: pointer;
+  }
+  .brief-head:hover { background: var(--bg-3); }
+  .brief-meta { font-family: var(--mono); font-size: 12px; color: var(--fg-dim); }
+  .brief-time { font-weight: 600; }
+  .brief-body {
+    padding: 12px;
+    font-size: 13px;
+    display: none;
+    border-top: 1px solid var(--bg-2);
+  }
+  .brief.open .brief-body { display: block; }
+  .brief-body pre {
+    background: var(--bg); border: 1px solid var(--bg-2);
+    padding: 10px; border-radius: 6px; overflow-x: auto;
+    font-family: var(--mono); font-size: 12px;
+    color: var(--fg-dim);
+    max-height: 360px;
+  }
+  .brief-body h1, .brief-body h2, .brief-body h3 { margin-top: 0.4em; }
+  .brief-tabs {
+    display: flex; gap: 0;
+    border-bottom: 1px solid var(--bg-2);
+    background: var(--bg);
+  }
+  .brief-tab {
+    padding: 6px 12px; cursor: pointer; font-size: 12px;
+    border: none; background: transparent;
+    color: var(--fg-dim); border-bottom: 2px solid transparent;
+    border-radius: 0;
+  }
+  .brief-tab.active { color: var(--fg); border-bottom-color: var(--acc); }
+  .brief-tab:hover:not(.active) { border-bottom-color: var(--fg-dim); }
+  .brief-pane { padding: 12px; }
+  .brief-pane.md { font-size: 13px; }
+  .brief-pane.json { font-family: var(--mono); font-size: 12px; }
+  .brief-pane pre { background: var(--bg); padding: 10px; border-radius: 6px; overflow-x: auto; }
+
+  /* ── shared ─────────────────────────────────────────────────── */
+  .empty { padding: 20px; color: var(--fg-dim); text-align: center; font-style: italic; }
+  .scrl { scrollbar-color: var(--bg-3) transparent; scrollbar-width: thin; }
+  .scrl::-webkit-scrollbar { width: 8px; }
+  .scrl::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 4px; }
+  details { margin: 6px 0; }
+  details summary {
+    cursor: pointer; color: var(--fg-dim); font-size: 12px;
+    padding: 4px 0;
+  }
+  details summary:hover { color: var(--fg); }
+  .err { color: var(--err); }
+  .ok { color: var(--ok); }
+
+  /* ── responsive: stack panels on narrow screens ─────────────── */
+  @media (max-width: 980px) {
+    #panels { grid-template-columns: 1fr; grid-auto-rows: minmax(180px, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="hud-item">
+    <span class="hud-label">Day</span>
+    <input id="day" type="date" />
+  </div>
+  <div class="hud-item">
+    <button id="prev">◀</button>
+    <button id="next">▶</button>
+    <button id="today">Today</button>
+  </div>
+  <div class="hud-item">
+    <span class="hud-label">Live</span>
+    <span class="status-dot" id="live"></span>
+    <span id="live-text" class="hud-val">connecting…</span>
+  </div>
+  <div class="hud-item" style="margin-left:auto">
+    <span class="hud-label">Captures</span>
+    <span class="hud-val" id="kpi-captures">–</span>
+  </div>
+  <div class="hud-item">
+    <span class="hud-label">M1 / M10 / H1 / D1</span>
+    <span class="hud-val" id="kpi-mix">–</span>
+  </div>
+</div>
+
+<div id="panels" class="scrl">
+
+  <section class="panel" id="p1">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">P1 · M1 change log</div>
+        <div class="panel-sub" id="p1-sub">transient · no images · EOD-evanescent</div>
+      </div>
+      <span class="badge" id="p1-count">0</span>
+    </div>
+    <div class="panel-body scrl" id="p1-body">
+      <div class="empty">Loading…</div>
+    </div>
+  </section>
+
+  <section class="panel" id="p2">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">P2 · M10 records</div>
+        <div class="panel-sub">canonical 10-min, day-stitched</div>
+      </div>
+      <span class="badge" id="p2-count">0</span>
+    </div>
+    <div class="panel-body scrl" id="p2-body">
+      <div class="empty">Loading…</div>
+    </div>
+  </section>
+
+  <section class="panel" id="p3">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">P3 · H1 + D1 briefings</div>
+        <div class="panel-sub">human MD + agentic JSON</div>
+      </div>
+      <span class="badge" id="p3-count">0</span>
+    </div>
+    <div class="panel-body scrl" id="p3-body">
+      <div class="empty">Loading…</div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+"use strict";
+
+// ─── state ────────────────────────────────────────────────────────────
+let currentDay = null;        // YYYY-MM-DD
+let sse = null;
+let lastTickAt = 0;
+
+// ─── helpers ──────────────────────────────────────────────────────────
+function isoTodayUTC() {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+    .toISOString().slice(0, 10);
+}
+function fmtCoord(lat, lon) {
+  if (lat == null || lon == null) return "--";
+  const NS = lat >= 0 ? "N" : "S";
+  const EW = lon >= 0 ? "E" : "W";
+  const aLat = Math.abs(lat), aLon = Math.abs(lon);
+  const dLat = Math.floor(aLat), dLon = Math.floor(aLon);
+  const mLat = (aLat - dLat) * 60, mLon = (aLon - dLon) * 60;
+  return `${String(dLat).padStart(2,"0")}°${mLat.toFixed(3).padStart(6,"0")}'${NS} ` +
+         `${String(dLon).padStart(3,"0")}°${mLon.toFixed(3).padStart(6,"0")}'${EW}`;
+}
+function fmtTime(iso) {
+  if (!iso) return "--";
+  const s = iso.slice(11, 16); // HH:MM
+  return s;
+}
+
+async function fetchJson(path) {
+  const res = await fetch(path, { headers: { "Accept": "application/json" } });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return await res.json();
+}
+async function fetchText(path) {
+  const res = await fetch(path);
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return await res.text();
+}
+
+// ─── rendering ────────────────────────────────────────────────────────
+function renderPanel1(notes) {
+  const body = document.getElementById("p1-body");
+  document.getElementById("p1-count").textContent = notes.length;
+  if (!notes.length) { body.innerHTML = '<div class="empty">No novel M1 notes for this day. Regular 1-min frames were GC\'d at EOD (per the retention policy).</div>'; return; }
+
+  const rows = notes.map(n => {
+    const coords = fmtCoord(n.lat, n.lon);
+    const features = (n.features || []).map(f => `<span class="tag">${escapeHtml(f)}</span>`).join("");
+    const gazeTag = n.gaze ? `<span class="tag gaze">gaze: ${escapeHtml(n.gaze)}</span>` : "";
+    return `
+      <div class="m1">
+        <div class="m1-time">${fmtTime(n.ts_utc)}<div class="m1-coords">${escapeHtml(coords)}</div></div>
+        <div class="m1-caption">
+          ${escapeHtml(n.caption || "(no caption)")}
+          <div class="m1-tags">${features}${gazeTag}<span class="tag">novelty ${Number(n.novelty || 0).toFixed(2)}</span></div>
+        </div>
+      </div>
+    `;
+  }).join("");
+  body.innerHTML = `<div class="m1-list">${rows}</div>`;
+}
+
+function renderPanel2(records) {
+  const body = document.getElementById("p2-body");
+  document.getElementById("p2-count").textContent = records.length;
+  if (!records.length) { body.innerHTML = '<div class="empty">No M10 records for this day yet.</div>'; return; }
+
+  const cards = records.map(r => {
+    const tags = [];
+    if (r.schools && r.schools.length) {
+      r.schools.slice(0, 3).forEach(s => tags.push(
+        `<span class="badge school">school ${escapeHtml(String(s.depth_fm ?? "?"))}fm · ${escapeHtml(s.size || "?")} · ${escapeHtml(s.band || "?")}</span>`));
+    }
+    if (r.thermocline_fm != null) tags.push(`<span class="badge tc">TC ${escapeHtml(String(r.thermocline_fm))} fm</span>`);
+    if (r.anomalies && r.anomalies.length) {
+      r.anomalies.slice(0, 2).forEach(a => tags.push(`<span class="badge anom">${escapeHtml(String(a).slice(0, 50))}</span>`));
+    }
+    const img = r.png
+      ? `<img class="m10-image" loading="lazy" src="/api/image/${encodeURIComponent(r.capture_id)}" alt="echogram @ ${fmtTime(r.ts_utc)}" />`
+      : `<div class="empty">image missing (GC'd or not yet captured)</div>`;
+    return `
+      <div class="m10">
+        <div class="m10-head">
+          <span class="m10-time">${fmtTime(r.ts_utc)}</span>
+          <span class="m10-coords">${escapeHtml(fmtCoord(r.lat, r.lon))} · ${r.sog_kts?.toFixed?.(1) ?? "?"} kt</span>
+          <span class="badge" style="margin-left:auto">capture ${escapeHtml(r.capture_id || "?")}</span>
+        </div>
+        <div class="m10-head m10-tags" style="grid-column:1/-1">
+          ${tags.join("")}
+        </div>
+        <div class="m10-summary">${escapeHtml(r.summary || "(no summary)")}</div>
+        <div class="m10-details">
+          <span>bottom <b>${r.bottom_fm ?? "?"} fm</b> · ${escapeHtml(r.bottom_type || "?")}</span>
+          <span>model ${escapeHtml(r.model || "?")}</span>
+        </div>
+        ${img}
+        <details>
+          <summary>record JSON</summary>
+          <pre>${escapeHtml(JSON.stringify(r, null, 2))}</pre>
+        </details>
+      </div>
+    `;
+  }).join("");
+  body.innerHTML = `<div class="m10-list">${cards}</div>`;
+}
+
+function renderPanel3(payload) {
+  const body = document.getElementById("p3-body");
+  const total = (payload.h1?.length || 0) + (payload.d1?.length || 0);
+  document.getElementById("p3-count").textContent = total;
+  if (!total) { body.innerHTML = '<div class="empty">No briefings yet for this day. H1 fires hourly; D1 runs at end-of-day.</div>'; return; }
+
+  const blocks = [];
+
+  for (const d1 of (payload.d1 || [])) {
+    const isJson = d1.kind === "json";
+    blocks.push(`
+      <div class="brief" data-kind="d1" data-file="${escapeHtml(d1.file)}">
+        <div class="brief-head">
+          <span class="brief-time">D1 · Daily</span>
+          <span class="brief-meta">${escapeHtml(d1.file)}</span>
+        </div>
+        <div class="brief-body">
+          ${renderBriefTabs(d1.file, isJson ? "json" : "md")}
+        </div>
+      </div>
+    `);
+  }
+
+  for (const h of (payload.h1 || [])) {
+    blocks.push(`
+      <div class="brief" data-kind="h1" data-md="${escapeHtml(h.file)}" data-json="${escapeHtml(h.json_file || "")}">
+        <div class="brief-head">
+          <span class="brief-time">H1 · ${escapeHtml(h.ts_human)}</span>
+          <span class="brief-meta">${escapeHtml(h.file)}</span>
+        </div>
+        <div class="brief-body">
+          ${renderBriefTabs(h.file, "md", h.json_file)}
+        </div>
+      </div>
+    `);
+  }
+
+  body.innerHTML = `<div class="briefs">${blocks.join("")}</div>`;
+
+  // wire click-to-open + tab switch
+  body.querySelectorAll(".brief-head").forEach(h => {
+    h.addEventListener("click", async (ev) => {
+      const wrap = h.parentElement;
+      const wasOpen = wrap.classList.contains("open");
+      if (wasOpen) { wrap.classList.remove("open"); return; }
+      wrap.classList.add("open");
+      await ensureBriefLoaded(wrap);
+    });
+  });
+  body.querySelectorAll(".brief-tab").forEach(t => {
+    t.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const wrap = t.closest(".brief");
+      wrap.querySelectorAll(".brief-tab").forEach(x => x.classList.remove("active"));
+      t.classList.add("active");
+      wrap.querySelectorAll(".brief-pane").forEach(p => p.style.display = "none");
+      const pane = wrap.querySelector(`.brief-pane[data-pane="${t.dataset.tab}"]`);
+      if (pane) pane.style.display = "block";
+    });
+  });
+}
+
+function renderBriefTabs(mdFile, active, jsonFile) {
+  const jsonTab = jsonFile ? `<button class="brief-tab" data-tab="json">JSON</button>` : "";
+  return `
+    <div class="brief-tabs">
+      <button class="brief-tab ${active==="md"?"active":""}" data-tab="md">MD</button>
+      ${jsonTab}
+    </div>
+    <div class="brief-pane md" data-pane="md"><pre>loading…</pre></div>
+    ${jsonFile ? `<div class="brief-pane json" data-pane="json" style="display:none"><pre>loading…</pre></div>` : ""}
+  `;
+}
+
+const _briefCache = new Map();
+async function ensureBriefLoaded(wrap) {
+  const md = wrap.querySelector(`.brief-pane[data-pane="md"] pre`);
+  if (md && md.textContent === "loading…") {
+    const file = wrap.dataset.md || wrap.dataset.file;
+    if (file) {
+      try {
+        const txt = await fetchText(`/api/briefing/${encodeURIComponent(file)}`);
+        md.textContent = txt;
+        // very tiny MD → HTML transformation
+        const wrap_pane = wrap.querySelector(`.brief-pane[data-pane="md"]`);
+        if (wrap_pane) wrap_pane.dataset.rendered = "0";
+      } catch (e) { md.textContent = "ERROR: " + e.message; }
+    }
+  }
+  const j = wrap.querySelector(`.brief-pane[data-pane="json"] pre`);
+  if (j && j.textContent === "loading…") {
+    const file = wrap.dataset.json;
+    if (file) {
+      try {
+        const obj = await fetchJson(`/api/briefing/${encodeURIComponent(file)}`);
+        j.textContent = JSON.stringify(obj, null, 2);
+      } catch (e) { j.textContent = "ERROR: " + e.message; }
+    }
+  }
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+// ─── day load ─────────────────────────────────────────────────────────
+async function loadDay(date) {
+  currentDay = date;
+  const [summary, p1, p2, p3] = await Promise.all([
+    fetchJson(`/api/day/${date}`),
+    fetchJson(`/api/day/${date}/panel/1`),
+    fetchJson(`/api/day/${date}/panel/2`),
+    fetchJson(`/api/day/${date}/panel/3`),
+  ]);
+  renderPanel1(p1.notes || []);
+  renderPanel2(p2.records || []);
+  renderPanel3({ h1: p3.h1 || [], d1: p3.d1 || [] });
+
+  document.getElementById("kpi-captures").textContent =
+    (p2.records?.length ?? 0);
+  document.getElementById("kpi-mix").textContent =
+    `${p1.notes?.length ?? 0} / ${p2.records?.length ?? 0} / ${p3.h1?.length ?? 0} / ${p3.d1?.length ?? 0}`;
+}
+
+// ─── SSE ──────────────────────────────────────────────────────────────
+function connectLive() {
+  if (sse) try { sse.close(); } catch {}
+  sse = new EventSource("/api/stream");
+  const dot = document.getElementById("live");
+  const txt = document.getElementById("live-text");
+  sse.onopen = () => { dot.className = "status-dot live"; txt.textContent = "live"; };
+  sse.onerror = () => {
+    dot.className = "status-dot dead";
+    txt.textContent = "offline";
+    setTimeout(connectLive, 2000);
+  };
+  sse.onmessage = (ev) => {
+    lastTickAt = Date.now();
+    try {
+      const e = JSON.parse(ev.data);
+      if (e.kind === "tick" && currentDay) {
+        // debounce: refresh all panels
+        clearTimeout(window.__refreshT);
+        window.__refreshT = setTimeout(() => loadDay(currentDay).catch(()=>{}), 600);
+      }
+    } catch {}
+  };
+}
+
+// ─── HUD wiring ──────────────────────────────────────────────────────
+window.addEventListener("DOMContentLoaded", () => {
+  const today = isoTodayUTC();
+  const inp = document.getElementById("day");
+  inp.value = today;
+  document.getElementById("prev").onclick = () => {
+    const d = new Date(Date.parse(inp.value + "T00:00Z"));
+    d.setUTCDate(d.getUTCDate() - 1);
+    inp.value = d.toISOString().slice(0, 10);
+    loadDay(inp.value).catch(e => console.error(e));
+  };
+  document.getElementById("next").onclick = () => {
+    const d = new Date(Date.parse(inp.value + "T00:00Z"));
+    d.setUTCDate(d.getUTCDate() + 1);
+    inp.value = d.toISOString().slice(0, 10);
+    loadDay(inp.value).catch(e => console.error(e));
+  };
+  document.getElementById("today").onclick = () => {
+    inp.value = today;
+    loadDay(today).catch(e => console.error(e));
+  };
+  inp.addEventListener("change", () => {
+    loadDay(inp.value).catch(e => console.error(e));
+  });
+  loadDay(today).catch(e => console.error(e));
+  connectLive();
+});
+</script>
+
+</body>
+</html>

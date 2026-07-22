@@ -200,6 +200,48 @@ def write_briefing() -> str | None:
     if suggestion:
         gaze.set_gaze(suggestion, set_by="H1", ttl_s=config.H1_INTERVAL)
 
+    # ── Structured JSON sidecar ─────────────────────────────────────
+    # Pair the prose with a small JSON file so downstream agents don't
+    # have to re-parse markdown. Built from model output when present,
+    # else derived from the records themselves.
+    structured = {
+        "ts_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "period_start": min((r.get("ts_utc") or "") for r in records),
+        "period_end": max((r.get("ts_utc") or "") for r in records),
+        "model": config.MODEL_H1,
+        "recommendations": tail.get("recommendations", []),
+        "suggest_gaze": tail.get("suggest_gaze") or "",
+        "schools": [],
+        "thermocline_fm": None,
+        "bottom_fm": None,
+        "counts": {
+            "records": len(records),
+            "novel_notes": len(include_notes),
+        },
+    }
+    for r in records[-30:]:
+        for s in (r.get("schools") or []):
+            structured["schools"].append({
+                "depth_fm": s.get("depth_fm"),
+                "size": s.get("size"),
+                "band": s.get("band"),
+                "ts_utc": r.get("ts_utc"),
+                "lat": r.get("lat"),
+                "lon": r.get("lon"),
+            })
+    depths = [r.get("bottom_fm") for r in records if r.get("bottom_fm") is not None]
+    if depths:
+        structured["bottom_fm"] = round(sum(depths) / len(depths), 1)
+    tc = [r.get("thermocline_fm") for r in records if r.get("thermocline_fm") is not None]
+    if tc:
+        structured["thermocline_fm"] = round(sum(tc) / len(tc), 1)
+
+    jout = config.DIR_BRIEFINGS / f"briefing_{stamp}.json"
+    jtmp = jout.with_suffix(".tmp")
+    jtmp.write_text(json.dumps(structured, indent=2), encoding="utf-8")
+    jtmp.replace(jout)
+    log.info("briefing JSON written: %s", jout.name)
+
     return str(out)
 
 

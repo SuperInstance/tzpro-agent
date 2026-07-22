@@ -20,6 +20,16 @@ from . import config, hourly_loop, minute_loop, decaminute_loop as m10
 log = logging.getLogger("cascade.daemon")
 
 
+def _day_dir_name(date_str: str) -> str:
+    """Capture day folders are named YYYY-MM-DD_<start_lat>N_<start_lon>W.
+    The retention GC walks only the day's folder; we match by prefix.
+    """
+    for d in sorted(config.CAPTURES.glob(date_str + "*")) if config.CAPTURES.exists() else []:
+        if d.is_dir():
+            return d.name
+    return date_str + "_unknownN_unknownW"
+
+
 class CascadeDaemon:
     def __init__(self) -> None:
         config.ensure_dirs()
@@ -27,7 +37,21 @@ class CascadeDaemon:
         self.next_m1 = 0.0
         self.next_m10 = 0.0
         self.next_h1 = time.time() + config.H1_INTERVAL  # first briefing after 1h
+        # D1 runs once per UTC day (04:00 by default — after most captains
+        # have closed the log, before the new day's first watch).
+        self.next_d1 = self._seconds_until(config.D1_HOUR_UTC, config.D1_MINUTE_UTC)
         self.recorded: set[str] = set()                  # capture_ids with records
+
+    @staticmethod
+    def _seconds_until(hour: int, minute: int) -> float:
+        now = time.gmtime()
+        # Seconds until the next (hour:minute) UTC boundary.
+        target = hour * 3600 + minute * 60
+        cur = now.tm_hour * 3600 + now.tm_min * 60 + now.tm_sec
+        delta = target - cur
+        if delta <= 0:
+            delta += 86400
+        return time.time() + delta
 
     # ── heartbeat ────────────────────────────────────────────────────
     def heartbeat(self) -> None:
@@ -98,6 +122,28 @@ class CascadeDaemon:
                     hourly_loop.write_briefing()
                 except Exception:
                     log.exception("H1 cycle failed — continuing")
+
+            if now >= self.next_d1:
+                # Daily brief runs at D1_HOUR_UTC. The "today" passed to
+                # write_daily is the *previous* day so we summarize what
+                # actually happened, not a half-built day.
+                from . import daily_loop, retention
+                prev = time.gmtime(time.time() - 86400)
+                prev_str = time.strftime("%Y-%m-%d", prev)
+                log.info("D1 cycle for %s", prev_str)
+                self.next_d1 = now + 86400  # tomorrow same time
+                try:
+                    daily_loop.write_daily(prev_str)
+                except Exception:
+                    log.exception("D1 cycle failed — continuing")
+                # Close the day: evening final-read + GC 1-min PNGs.
+                try:
+                    day_dir = config.CAPTURES / _day_dir_name(prev_str)
+                    if day_dir.is_dir():
+                        retention.evening_final_read(day_dir)
+                        log.info("GC complete for %s", prev_str)
+                except Exception:
+                    log.exception("evening GC failed — continuing")
 
             if now - last_hb >= config.HEARTBEAT_INTERVAL:
                 last_hb = now

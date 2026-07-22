@@ -42,13 +42,22 @@ M10_INTERVAL = int(os.environ.get("CASCADE_M10_INTERVAL", "600"))
 H1_INTERVAL = int(os.environ.get("CASCADE_H1_INTERVAL", "3600"))
 HEARTBEAT_INTERVAL = 30
 
+# ── Daily brief (UTC) ────────────────────────────────────────────────
+# Fires once per UTC day at this hour:minute. 04:00 UTC = 20:00 AKDT
+# the previous evening — after the day's logs close, before the new
+# day's first capture. Set D1_HOUR/D1_MIN env vars to override.
+D1_HOUR_UTC = int(os.environ.get("CASCADE_D1_HOUR", "16"))   # 16 UTC ≈ 08 AKDT next morning
+D1_MINUTE_UTC = int(os.environ.get("CASCADE_D1_MINUTE", "0"))
+
 # ── Retention ────────────────────────────────────────────────────────
 # Calibration study (docs/research/NOVELTY_CALIBRATION.md): score-only
 # retention is broken — novelty scores compress into a 0.6-0.8 noise band.
 # The OR-of-three rule keeps 26% on the 2026-07-19 corpus, in the 5-25% band.
 NOVELTY_THRESHOLD = float(os.environ.get("CASCADE_NOVELTY_THRESHOLD", "0.85"))
 RING_BUFFER_SIZE = 120          # M1 notes kept in memory for the scribe
-GC_MINUTE_PNGS = os.environ.get("CASCADE_GC_MINUTE_PNGS", "0") == "1"  # off: keep frames
+# ON by default: 1-min PNGs are deleted at EOD by the GC daemon, only
+# novel M1 notes + all M10 records are kept. Flip with CASCADE_GC_MINUTE_PNGS=0.
+GC_MINUTE_PNGS = os.environ.get("CASCADE_GC_MINUTE_PNGS", "1") == "1"
 
 # OR-of-three retention rule clauses (calibrated 2026-07-19)
 RETENTION_DEPTH_RE = r"(approximately|at)\s+\d+\s*(fm|fathoms?|m\b|met[er]+s?)"
